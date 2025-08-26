@@ -2,66 +2,217 @@ import 'package:flutter/foundation.dart';
 import '../models/group.dart';
 import '../models/expense.dart';
 import '../models/person.dart';
+import '../services/local_storage_service.dart';
+
 
 class GroupProvider with ChangeNotifier {
   List<Group> _groups = [];
   Group? _currentGroup;
+  bool _isInitialized = false;
 
   List<Group> get groups => _groups;
   Group? get currentGroup => _currentGroup;
+  bool get isInitialized => _isInitialized;
+  
+  // Get groups for a specific person
+  List<Group> getGroupsForPerson(String personId) {
+    return _groups.where((group) => 
+      group.members.any((person) => person.id == personId)
+    ).toList();
+  }
+  
+  // Get all unique people across all groups
+  List<Person> get allPeople {
+    final peopleMap = <String, Person>{};
+    for (final group in _groups) {
+      for (final person in group.members) {
+        peopleMap[person.id] = person;
+      }
+    }
+    return peopleMap.values.toList();
+  }
 
-  // Initialize with sample data
+  // Initialize with local storage data
   GroupProvider() {
-    _initializeSampleData();
+    // Initialize immediately with empty state, then load from storage
+    _isInitialized = false;
+    _initializeFromStorage();
   }
 
-  void _initializeSampleData() {
-    final person1 = Person(id: '1', name: 'Alice');
-    final person2 = Person(id: '2', name: 'Bob');
-    final person3 = Person(id: '3', name: 'Charlie');
-
-    final sampleGroup = Group(
-      id: '1',
-      name: 'Trip to Paris',
-      members: [person1, person2, person3],
-      currency: 'EUR',
-    );
-
-    _groups.add(sampleGroup);
-    _currentGroup = sampleGroup;
-    notifyListeners();
+  Future<void> _initializeFromStorage() async {
+    try {
+      // Add a small delay to ensure Hive is fully initialized
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      print('Loading groups from storage...');
+      final storedGroups = LocalStorageService.getAllGroups();
+      print('Found ${storedGroups.length} groups in storage');
+      
+      _groups = storedGroups;
+      
+      if (_groups.isNotEmpty) {
+        _currentGroup = _groups.first;
+        print('Set current group: ${_currentGroup!.name}');
+      } else {
+        print('No groups found in storage');
+      }
+      
+      _isInitialized = true;
+      print('Initialization complete. Total groups: ${_groups.length}');
+      notifyListeners();
+    } catch (e) {
+      print('Error loading from storage: $e');
+      // Start with empty state on error
+      _isInitialized = true;
+      notifyListeners();
+    }
   }
 
-  void setCurrentGroup(Group group) {
+  Future<void> setCurrentGroup(Group group) async {
     _currentGroup = group;
+    
+    // Save the current group to storage to persist the selection
+    try {
+      await LocalStorageService.saveGroup(group);
+      print('Successfully saved current group "${group.name}" to storage');
+    } catch (e) {
+      print('Error saving current group to storage: $e');
+    }
+    
     notifyListeners();
   }
 
-  void addGroup(Group group) {
-    _groups.add(group);
+  // Manual refresh from storage (useful for debugging and ensuring data persistence)
+  Future<void> refreshFromStorage() async {
+    try {
+      print('Manually refreshing from storage...');
+      final storedGroups = LocalStorageService.getAllGroups();
+      print('Found ${storedGroups.length} groups in storage during refresh');
+      
+      _groups = storedGroups;
+      
+      if (_groups.isNotEmpty && _currentGroup == null) {
+        _currentGroup = _groups.first;
+        print('Set current group during refresh: ${_currentGroup!.name}');
+      }
+      
+      notifyListeners();
+      print('Refresh complete. Total groups: ${_groups.length}');
+    } catch (e) {
+      print('Error refreshing from storage: $e');
+    }
+  }
+
+  Future<void> addGroup(Group group) async {
+    // Check if group already exists
+    final existingIndex = _groups.indexWhere((g) => g.id == group.id);
+    if (existingIndex != -1) {
+      // Update existing group
+      _groups[existingIndex] = group;
+    } else {
+      // Add new group
+      _groups.add(group);
+    }
+    
+    // Set as current group if it's the first one
+    if (_currentGroup == null) {
+      _currentGroup = group;
+    }
+    
+    // Save the group to storage (this will also save its expenses)
+    try {
+      await LocalStorageService.saveGroup(group);
+      print('Successfully saved group "${group.name}" to storage');
+    } catch (e) {
+      print('Error saving group to storage: $e');
+    }
+    
     notifyListeners();
   }
 
-  void removeGroup(String groupId) {
+  Future<void> removeGroup(String groupId) async {
     _groups.removeWhere((group) => group.id == groupId);
     if (_currentGroup?.id == groupId) {
       _currentGroup = _groups.isNotEmpty ? _groups.first : null;
     }
+    
+    // Remove the group from storage (this will also remove its expenses)
+    try {
+      await LocalStorageService.deleteGroup(groupId);
+      print('Successfully removed group $groupId from storage');
+    } catch (e) {
+      print('Error removing group from storage: $e');
+    }
+    
     notifyListeners();
   }
 
-  void addExpense(Expense expense) {
-    if (_currentGroup != null) {
-      _currentGroup!.addExpense(expense);
+  Future<void> addExpense(Expense expense) async {
+    // Find the correct group based on the expense's groupId
+    final groupIndex = _groups.indexWhere((g) => g.id == expense.groupId);
+    if (groupIndex != -1) {
+      // Add expense to the correct group
+      final group = _groups[groupIndex];
+      final updatedExpenses = List<Expense>.from(group.expenses)..add(expense);
+      final updatedGroup = group.copyWith(expenses: updatedExpenses);
+      
+      // Update the groups list
+      _groups[groupIndex] = updatedGroup;
+      
+      // Update current group if it's the same group
+      if (_currentGroup?.id == expense.groupId) {
+        _currentGroup = updatedGroup;
+      }
+      
+      // Save both the expense and the updated group to storage
+      try {
+        await LocalStorageService.saveExpense(expense);
+        await LocalStorageService.saveGroup(updatedGroup);
+        print('Successfully saved expense "${expense.name}" to storage');
+      } catch (e) {
+        print('Error saving expense to storage: $e');
+      }
+      
       notifyListeners();
+    } else {
+      print('Warning: Could not find group with id ${expense.groupId} for expense ${expense.name}');
     }
   }
 
-  void removeExpense(String expenseId) {
-    if (_currentGroup != null) {
-      _currentGroup!.removeExpense(expenseId);
-      notifyListeners();
+  Future<void> removeExpense(String expenseId) async {
+    // Find which group contains this expense
+    for (int i = 0; i < _groups.length; i++) {
+      final group = _groups[i];
+      final expenseIndex = group.expenses.indexWhere((e) => e.id == expenseId);
+      
+      if (expenseIndex != -1) {
+        // Remove expense from this group
+        final updatedExpenses = List<Expense>.from(group.expenses)..removeAt(expenseIndex);
+        final updatedGroup = group.copyWith(expenses: updatedExpenses);
+        
+        // Update the groups list
+        _groups[i] = updatedGroup;
+        
+        // Update current group if it's the same group
+        if (_currentGroup?.id == group.id) {
+          _currentGroup = updatedGroup;
+        }
+        
+        // Save the updated group to storage and delete the expense
+        try {
+          await LocalStorageService.deleteExpense(expenseId);
+          await LocalStorageService.saveGroup(updatedGroup);
+          print('Successfully removed expense $expenseId from storage');
+        } catch (e) {
+          print('Error removing expense from storage: $e');
+        }
+        
+        notifyListeners();
+        return;
+      }
     }
+    
+    print('Warning: Could not find expense with id $expenseId to remove');
   }
 
   void addPerson(Person person) {

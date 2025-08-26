@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/group_provider.dart';
-import 'screens/home_screen.dart';
+import 'screens/groups_overview_screen.dart';
+import 'services/local_storage_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize local storage
+  await LocalStorageService.initialize();
+  
+  // Note: Removed clearAllData() to preserve data across hot restarts
+  // Use LocalStorageService.clearAllData() manually when needed for testing
+  
   runApp(const BuddyCountApp());
 }
 
@@ -20,7 +29,7 @@ class BuddyCountApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
           useMaterial3: true,
         ),
-        home: const HomeScreen(),
+                        home: const GroupsOverviewScreen(),
         debugShowCheckedModeBanner: false,
       ),
     );
