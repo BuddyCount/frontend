@@ -204,9 +204,9 @@ This project is part of the HEIG-VD BA5 PDG course. All rights reserved.
 
 ## 👥 Team
 
-- **Frontend Development**: [Your Name]
-- **Backend Development**: [Team Members]
-- **Project Management**: [Project Tutors]
+- **Frontend Development**: [Sergey Komarov]
+- **Backend Development**: [Aude Laydu, Arthur Jacobs]
+
 
 ## 📞 Support
 
