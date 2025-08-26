@@ -1,6 +1,16 @@
-class Person {
+import 'package:hive/hive.dart';
+
+part 'person.g.dart';
+
+@HiveType(typeId: 1)
+class Person extends HiveObject {
+  @HiveField(0)
   final String id;
+  
+  @HiveField(1)
   final String name;
+  
+  @HiveField(2)
   double balance;
 
   Person({
@@ -33,7 +43,7 @@ class Person {
     return Person(
       id: json['id'],
       name: json['name'],
-      balance: json['balance'].toDouble(),
+      balance: (json['balance'] as num?)?.toDouble() ?? 0.0,
     );
   }
 } 

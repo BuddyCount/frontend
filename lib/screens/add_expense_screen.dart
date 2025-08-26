@@ -211,9 +211,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  void _saveExpense(GroupProvider groupProvider) {
+    void _saveExpense(GroupProvider groupProvider) {
     if (_formKey.currentState!.validate() && _selectedMembers.isNotEmpty) {
-             final expense = Expense(
+      final currentGroup = groupProvider.currentGroup;
+      if (currentGroup == null) return;
+      
+      final expense = Expense(
          id: DateTime.now().millisecondsSinceEpoch.toString(),
          name: _nameController.text,
          amount: double.parse(_amountController.text),
@@ -221,6 +224,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
          paidBy: _selectedPayer,
          splitBetween: _selectedMembers,
          date: _selectedDate,
+         groupId: currentGroup.id,
        );
 
       groupProvider.addExpense(expense);

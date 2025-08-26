@@ -1,72 +1,56 @@
-import 'expense.dart';
+import 'package:hive/hive.dart';
 import 'person.dart';
+import 'expense.dart';
 
-class Group {
+part 'group.g.dart';
+
+@HiveType(typeId: 0)
+class Group extends HiveObject {
+  @HiveField(0)
   final String id;
+  
+  @HiveField(1)
   final String name;
+  
+  @HiveField(2)
   final List<Person> members;
+  
+  @HiveField(3)
   final List<Expense> expenses;
-  final String currency;
+  
+  @HiveField(4)
+  final DateTime createdAt;
+  
+  @HiveField(5)
+  final DateTime updatedAt;
 
   Group({
     required this.id,
     required this.name,
     required this.members,
-    required this.currency,
     List<Expense>? expenses,
-  }) : expenses = expenses ?? [];
-
-  double get totalExpenses {
-    return expenses.fold(0.0, (sum, expense) => sum + expense.amount);
-  }
-
-  void addExpense(Expense expense) {
-    expenses.add(expense);
-    _updateBalances();
-  }
-
-  void removeExpense(String expenseId) {
-    expenses.removeWhere((expense) => expense.id == expenseId);
-    _updateBalances();
-  }
-
-  void _updateBalances() {
-    // Reset all balances
-    for (var person in members) {
-      person.balance = 0.0;
-    }
-
-    // Calculate balances based on expenses
-    for (var expense in expenses) {
-      final payer = members.firstWhere((p) => p.id == expense.paidBy);
-      final splitAmount = expense.amount / expense.splitBetween.length;
-      
-      payer.balance += expense.amount;
-      
-      for (var personId in expense.splitBetween) {
-        if (personId != expense.paidBy) {
-          final person = members.firstWhere((p) => p.id == personId);
-          person.balance -= splitAmount;
-        } else {
-          payer.balance -= splitAmount;
-        }
-      }
-    }
-  }
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) : 
+    expenses = expenses ?? [],
+    createdAt = createdAt ?? DateTime.now(),
+    updatedAt = updatedAt ?? DateTime.now();
 
   Group copyWith({
     String? id,
     String? name,
     List<Person>? members,
     List<Expense>? expenses,
-    String? currency,
+    DateTime? createdAt,
+    DateTime? updatedAt,
   }) {
     return Group(
       id: id ?? this.id,
       name: name ?? this.name,
       members: members ?? this.members,
       expenses: expenses ?? this.expenses,
-      currency: currency ?? this.currency,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
@@ -76,7 +60,8 @@ class Group {
       'name': name,
       'members': members.map((m) => m.toJson()).toList(),
       'expenses': expenses.map((e) => e.toJson()).toList(),
-      'currency': currency,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
@@ -87,10 +72,11 @@ class Group {
       members: (json['members'] as List)
           .map((m) => Person.fromJson(m))
           .toList(),
-      expenses: (json['expenses'] as List)
-          .map((e) => Expense.fromJson(e))
-          .toList(),
-      currency: json['currency'],
+      expenses: (json['expenses'] as List?)
+          ?.map((e) => Expense.fromJson(e))
+          .toList() ?? [],
+      createdAt: DateTime.parse(json['createdAt']),
+      updatedAt: DateTime.parse(json['updatedAt']),
     );
   }
 } 
