@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/group_provider.dart';
 import '../models/expense.dart';
 import '../models/group.dart';
-import '../models/person.dart';
+
 import 'add_expense_screen.dart';
 import '../widgets/group_dialog.dart';
 import '../services/sync_service.dart';
@@ -268,7 +268,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildGroupsOverview(BuildContext context, GroupProvider groupProvider) {
-    if (groupProvider.groups.length <= 1) return const SizedBox.shrink();
+                    if (groupProvider.groups.length <= 1) {
+                  return const SizedBox.shrink();
+                }
     
     return Card(
       child: Padding(
@@ -353,7 +355,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Group selector dropdown
                 Consumer<GroupProvider>(
                   builder: (context, provider, child) {
-                    if (provider.groups.length <= 1) return const SizedBox.shrink();
+                    if (provider.groups.length <= 1) {
+                    return const SizedBox.shrink();
+                  }
                     
                     return DropdownButton<Group>(
                       value: group,

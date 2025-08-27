@@ -1,0 +1,27 @@
+name: Generate Badges
+
+on:
+  workflow_run:
+    workflows: ["Flutter Tests"]
+    types:
+      - completed
+
+jobs:
+  badges:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion != 'skipped' }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Generate Test Badge
+      uses: schneegans/dynamic-badges-action@v1.6.0
+      with:
+        auth: ${{ secrets.GIST_SECRET }}
+        gistID: your-gist-id-here
+        filename: flutter-tests.json
+        label: tests
+        message: ${{ github.event.workflow_run.conclusion == 'success' && 'passing' || 'failing' }}
+        namedLogo: flutter
+        color: ${{ github.event.workflow_run.conclusion == 'success' && 'green' || 'red' }}
+        logLevel: 1

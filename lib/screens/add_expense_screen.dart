@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/group_provider.dart';
 import '../models/expense.dart';
-import '../models/group.dart';
-import '../models/person.dart';
+
 import 'package:intl/intl.dart';
 
 class AddExpenseScreen extends StatefulWidget {
@@ -99,7 +98,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _selectedCurrency,
+                          initialValue: _selectedCurrency,
                           decoration: const InputDecoration(
                             labelText: 'Currency',
                             border: OutlineInputBorder(),
@@ -120,7 +119,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    value: _selectedPayer.isEmpty ? null : _selectedPayer,
+                    initialValue: _selectedPayer.isEmpty ? null : _selectedPayer,
                     decoration: const InputDecoration(
                       labelText: 'Paid by',
                       border: OutlineInputBorder(),
