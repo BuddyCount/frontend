@@ -44,7 +44,7 @@ void main() {
         expect(uri.queryParameters, isEmpty);
       });
 
-      test('should have no query parameters by default', () {
+      test('should have no query parameters by default.', () {
         final uri = Uri.parse(ApiService.baseUrl);
         expect(uri.queryParameters, isEmpty);
         expect(uri.fragment, isEmpty);
