@@ -32,7 +32,7 @@ A modern, offline-first Flutter application for managing shared expenses and bud
 
 ## 🛠️ Tech Stack
 
-- **Framework**: Flutter 3.x
+- **Framework**: Flutter 3.35.2
 - **Language**: Dart
 - **State Management**: Provider
 - **Local Database**: Hive
@@ -41,7 +41,7 @@ A modern, offline-first Flutter application for managing shared expenses and bud
 
 ## 📋 Prerequisites
 
-- Flutter SDK (3.0.0 or higher)
+- Flutter SDK (3.35.2 or higher)
 - Dart SDK (3.0.0 or higher)
 - iOS Simulator (for iOS development)
 - Android Emulator or device (for Android development)
