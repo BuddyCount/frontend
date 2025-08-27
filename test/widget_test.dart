@@ -15,7 +15,10 @@ void main() {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const BuddyCountApp());
 
-    // Verify that our app loads
-    expect(find.text('BuddyCount'), findsOneWidget);
+    // Wait for async operations to complete
+    await tester.pumpAndSettle();
+
+    // Verify that our app loads by checking for the GroupsOverviewScreen content
+    expect(find.text('My Groups'), findsOneWidget);
   });
 }

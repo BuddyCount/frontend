@@ -54,8 +54,48 @@ class SyncService {
     }
   }
 
-  // Create group (offline-first)
+  // Create group (online-first, offline-fallback)
   Future<void> createGroupOffline(String name, List<String> memberNames, BuildContext context) async {
+    if (_isOnline) {
+      // Try to create group via API first
+      try {
+        print('🌐 Attempting to create group via API: $name');
+        final apiResponse = await ApiService.createGroup(name, memberNames);
+        
+        // API succeeded - create group with backend ID
+        final backendGroupId = apiResponse['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
+        
+        // Create unique IDs for each member
+        final members = memberNames.map((name) => 
+          Person(id: '${DateTime.now().millisecondsSinceEpoch}_${name.hashCode}', name: name)
+        ).toList();
+        
+        final group = Group(
+          id: backendGroupId,
+          name: name,
+          members: members,
+        );
+
+        // Save to local storage with backend ID
+        await LocalStorageService.saveGroup(group);
+        
+        // Update the provider
+        if (context.mounted) {
+          final provider = Provider.of<GroupProvider>(context, listen: false);
+          provider.addGroup(group);
+        }
+        
+        print('✅ Group created successfully via API with ID: $backendGroupId');
+        return;
+        
+      } catch (e) {
+        print('⚠️ API creation failed, falling back to offline mode: $e');
+        // Fall through to offline creation
+      }
+    }
+    
+    // Offline creation (fallback or when offline)
+    print('📱 Creating group offline: $name');
     final groupId = DateTime.now().millisecondsSinceEpoch.toString();
     
     // Create unique IDs for each member
@@ -72,11 +112,10 @@ class SyncService {
     // Save to local storage immediately
     await LocalStorageService.saveGroup(group);
     
-    // Update the provider - add the group without overriding existing ones
+    // Update the provider
     if (context.mounted) {
       final provider = Provider.of<GroupProvider>(context, listen: false);
       provider.addGroup(group);
-      // Don't automatically set as current group - let user choose
     }
 
     // Add to pending operations for later sync
@@ -86,10 +125,7 @@ class SyncService {
       'memberNames': memberNames,
     });
 
-    // Try to sync immediately if online
-    if (_isOnline) {
-      _syncPendingOperations(context);
-    }
+    print('📱 Group created offline with ID: $groupId (will sync when online)');
   }
 
   // Add expense (offline-first)
