@@ -7,23 +7,38 @@ class ApiService {
   // Create a new group
   static Future<Map<String, dynamic>> createGroup(String groupName, List<String> memberNames) async {
     try {
+      print('🚀 Creating group via API: $groupName with ${memberNames.length} members');
+      
       final response = await http.post(
         Uri.parse('$baseUrl/groups'),
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: jsonEncode({
           'name': groupName,
           'members': memberNames,
         }),
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Request timed out after 10 seconds');
+        },
       );
       
-      if (response.statusCode == 201) {
-        return jsonDecode(response.body);
+      print('📡 API Response: Status ${response.statusCode}');
+      print('📄 Response body: ${response.body}');
+      
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        print('✅ Group created successfully: ${responseData['id'] ?? 'No ID returned'}');
+        return responseData;
       } else {
-        throw Exception('Failed to create group: ${response.statusCode}');
+        print('❌ API Error: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to create group: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
+      print('💥 Exception in createGroup: $e');
       throw Exception('Error creating group: $e');
     }
   }

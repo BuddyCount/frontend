@@ -138,7 +138,7 @@ class _GroupDialogState extends State<GroupDialog> {
             .where((name) => name.isNotEmpty)
             .toList();
         
-        // Use offline-first approach
+        // Use enhanced sync service (online-first, offline-fallback)
         final syncService = SyncService();
         await syncService.createGroupOffline(
           _groupNameController.text.trim(),
@@ -148,11 +148,18 @@ class _GroupDialogState extends State<GroupDialog> {
         
         if (mounted) {
           Navigator.of(context).pop();
+          
+          // Show appropriate message based on connectivity
+          final isOnline = syncService.isOnline;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Group created successfully! You can now switch between groups.'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
+            SnackBar(
+              content: Text(
+                isOnline 
+                  ? '✅ Group created successfully via backend! You can now switch between groups.'
+                  : '📱 Group created offline! Will sync with backend when connection is restored.',
+              ),
+              backgroundColor: isOnline ? Colors.green : Colors.orange,
+              duration: const Duration(seconds: 4),
             ),
           );
         }
