@@ -243,7 +243,7 @@ class GroupDetailScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            ...group.expenses.map((expense) => _buildExpenseTile(context, expense, group, groupProvider)).toList(),
+            ...group.expenses.map((expense) => _buildExpenseTile(context, expense, group, groupProvider)),
           ],
         ),
       ),
