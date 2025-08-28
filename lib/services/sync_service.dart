@@ -127,6 +127,67 @@ class SyncService {
 
     print('📱 Group created offline with ID: $groupId (will sync when online)');
   }
+  
+  // Join group (online-first, offline-fallback)
+  Future<void> joinGroupOffline(String inviteLink, BuildContext context) async {
+    if (_isOnline) {
+      // Try to join group via API first
+      try {
+        print('🌐 Attempting to join group via API: $inviteLink');
+        final apiResponse = await ApiService.joinGroup(inviteLink);
+        
+        // API succeeded - extract group details
+        final groupDetails = apiResponse['groupDetails'];
+        final actualGroupId = apiResponse['actualGroupId'];
+        
+        if (groupDetails != null && actualGroupId != null) {
+          // Convert API response to Group object
+          final members = (groupDetails['members'] as List<dynamic>? ?? [])
+              .map((m) => Person(
+                    id: m['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+                    name: m['name'] ?? 'Unknown',
+                  ))
+              .toList();
+          
+          final group = Group(
+            id: actualGroupId,
+            name: groupDetails['name'] ?? 'Unknown Group',
+            members: members,
+          );
+          
+          // Save to local storage
+          await LocalStorageService.saveGroup(group);
+          
+          // Update the provider
+          if (context.mounted) {
+            final provider = Provider.of<GroupProvider>(context, listen: false);
+            provider.addGroup(group);
+          }
+          
+          print('✅ Group joined successfully via API with ID: $actualGroupId');
+          return;
+        }
+        
+      } catch (e) {
+        print('⚠️ API join failed, falling back to offline mode: $e');
+        // Fall through to offline handling
+      }
+    }
+    
+    // Offline handling (when offline or API fails)
+    print('📱 Cannot join group while offline: $inviteLink');
+    
+    // Show offline message to user
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('📱 Cannot join groups while offline. Please try again when connected.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
+      );
+    }
+  }
 
   // Add expense (offline-first)
   Future<void> addExpenseOffline(Expense expense, BuildContext context) async {
@@ -151,6 +212,8 @@ class SyncService {
       _syncPendingOperations(context);
     }
   }
+  
+
 
   // Sync pending operations with backend
   Future<void> _syncPendingOperations(BuildContext context) async {
