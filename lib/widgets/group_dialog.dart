@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/person.dart';
 import '../services/sync_service.dart';
 
 class GroupDialog extends StatefulWidget {
@@ -22,6 +23,8 @@ class _GroupDialogState extends State<GroupDialog> {
   
   late bool _isCreatingGroup;
   bool _isLoading = false;
+  String? _selectedMemberId;
+  List<Person> _availableMembers = [];
 
   @override
   void initState() {
@@ -111,6 +114,9 @@ class _GroupDialogState extends State<GroupDialog> {
                   return null;
                 },
               ),
+              const SizedBox(height: 16),
+              // Member selection for the current user
+              _buildMemberSelection(),
             ],
           ],
         ),
@@ -215,5 +221,79 @@ class _GroupDialogState extends State<GroupDialog> {
         });
       }
     }
+  }
+  
+  Widget _buildMemberSelection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Which member are you?',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (_isCreatingGroup) ...[
+          // For creating groups, show member names from input
+          if (_memberNamesController.text.isNotEmpty) ...[
+            ..._parseMemberNames().map((memberName) {
+              return RadioListTile<String>(
+                title: Text(memberName),
+                value: memberName,
+                groupValue: _selectedMemberId,
+                onChanged: (value) {
+                  setState(() {
+                    _selectedMemberId = value;
+                  });
+                },
+              );
+            }),
+          ] else ...[
+            Text(
+              'Enter member names above first',
+              style: TextStyle(
+                color: Colors.grey.shade500,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ] else ...[
+          // For joining groups, show available members
+          if (_availableMembers.isNotEmpty) ...[
+            ..._availableMembers.map((member) {
+              return RadioListTile<String>(
+                title: Text(member.name),
+                value: member.id,
+                groupValue: _selectedMemberId,
+                onChanged: (value) {
+                  setState(() {
+                    _selectedMemberId = value;
+                  });
+                },
+              );
+            }),
+          ] else ...[
+            Text(
+              'Members will be loaded when joining the group',
+              style: TextStyle(
+                color: Colors.grey.shade500,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ],
+      ],
+    );
+  }
+  
+  List<String> _parseMemberNames() {
+    return _memberNamesController.text
+        .split(',')
+        .map((name) => name.trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
   }
 }

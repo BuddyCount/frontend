@@ -27,7 +27,18 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final groupProvider = Provider.of<GroupProvider>(context, listen: false);
       if (groupProvider.currentGroup != null) {
-        _selectedPayer = groupProvider.currentGroup!.members.first.id;
+        // Try to auto-fill with user's selected member
+        final userMember = groupProvider.getUserMember(groupProvider.currentGroup!.id);
+        
+        if (userMember != null) {
+          _selectedPayer = userMember.id;
+          print('Auto-filled payer with user member: ${userMember.name}');
+        } else {
+          // Fallback to first member if user hasn't selected one
+          _selectedPayer = groupProvider.currentGroup!.members.first.id;
+          print('No user member selected, using first member as payer');
+        }
+        
         for (var person in groupProvider.currentGroup!.members) {
           _selectedMembers.add(person.id);
         }

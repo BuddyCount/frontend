@@ -1,0 +1,137 @@
+name: Generate Simple Badges
+
+on:
+  workflow_run:
+    workflows: ["Flutter Tests"]
+    types:
+      - completed
+
+jobs:
+  badges:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion != 'skipped' }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Generate Test Badge
+      run: |
+        # Create badges directory if it doesn't exist
+        mkdir -p badges
+        
+        # Generate test status badge
+        if [ "${{ github.event.workflow_run.conclusion }}" = "success" ]; then
+          echo "✅ Tests are passing"
+          # Create a simple passing badge
+          cat > badges/test-status.svg << 'EOF'
+        <svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">
+          <linearGradient id="b" x2="0" y2="100%">
+            <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+            <stop offset="1" stop-opacity=".1"/>
+          </linearGradient>
+          <mask id="a">
+            <rect width="120" height="20" rx="3" fill="#fff"/>
+          </mask>
+          <g mask="url(#a)">
+            <path fill="#555" d="M0 0h50v20H0z"/>
+            <path fill="#4c1" d="M50 0h70v20H50z"/>
+            <path fill="url(#b)" d="M0 0h120v20H0z"/>
+          </g>
+          <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+            <text x="25" y="15" fill="#010101" fill-opacity=".3">tests</text>
+            <text x="25" y="14">tests</text>
+            <text x="85" y="15" fill="#010101" fill-opacity=".3">passing</text>
+            <text x="85" y="14">passing</text>
+          </g>
+        </svg>
+        EOF
+        else
+          echo "❌ Tests are failing"
+          # Create a simple failing badge
+          cat > badges/test-status.svg << 'EOF'
+        <svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">
+          <linearGradient id="b" x2="0" y2="100%">
+            <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+            <stop offset="1" stop-opacity=".1"/>
+          </linearGradient>
+          <mask id="a">
+            <rect width="120" height="20" rx="3" fill="#fff"/>
+          </mask>
+          <g mask="url(#a)">
+            <path fill="#555" d="M0 0h50v20H0z"/>
+            <path fill="#e05d44" d="M50 0h70v20H50z"/>
+            <path fill="url(#b)" d="M0 0h120v20H0z"/>
+          </g>
+          <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+            <text x="25" y="15" fill="#010101" fill-opacity=".3">tests</text>
+            <text x="25" y="14">tests</text>
+            <text x="85" y="15" fill="#010101" fill-opacity=".3">failing</text>
+            <text x="85" y="14">failing</text>
+          </g>
+        </svg>
+        EOF
+        fi
+        
+        # Generate build status badge
+        if [ "${{ github.event.workflow_run.conclusion }}" = "success" ]; then
+          cat > badges/build-status.svg << 'EOF'
+        <svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">
+          <linearGradient id="b" x2="0" y2="100%">
+            <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+            <stop offset="1" stop-opacity=".1"/>
+          </linearGradient>
+          <mask id="a">
+            <rect width="120" height="20" rx="3" fill="#fff"/>
+          </mask>
+          <g mask="url(#a)">
+            <path fill="#555" d="M0 0h50v20H0z"/>
+            <path fill="#4c1" d="M50 0h70v20H50z"/>
+            <path fill="url(#b)" d="M0 0h120v20H0z"/>
+          </g>
+          <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+            <text x="25" y="15" fill="#010101" fill-opacity=".3">build</text>
+            <text x="25" y="14">build</text>
+            <text x="85" y="15" fill="#010101" fill-opacity=".3">passing</text>
+            <text x="85" y="14">passing</text>
+          </g>
+        </svg>
+        EOF
+        else
+          cat > badges/build-status.svg << 'EOF'
+        <svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">
+          <linearGradient id="b" x2="0" y2="100%">
+            <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+            <stop offset="1" stop-opacity=".1"/>
+          </linearGradient>
+          <mask id="a">
+            <rect width="120" height="20" rx="3" fill="#fff"/>
+          </mask>
+          <g mask="url(#a)">
+            <path fill="#555" d="M0 0h50v20H0z"/>
+            <path fill="#e05d44" d="M50 0h70v20H50z"/>
+            <path fill="url(#b)" d="M0 0h120v20H0z"/>
+          </g>
+          <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+            <text x="25" y="15" fill="#010101" fill-opacity=".3">build</text>
+            <text x="25" y="14">build</text>
+            <text x="85" y="15" fill="#010101" fill-opacity=".3">failing</text>
+            <text x="85" y="14">failing</text>
+          </g>
+        </svg>
+        EOF
+        fi
+        
+        echo "Badges generated successfully!"
+        ls -la badges/
+    
+    - name: Commit Badges
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add badges/
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Update badges [skip ci]"
+          git push
+        fi

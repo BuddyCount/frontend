@@ -136,7 +136,6 @@ class GroupsOverviewScreen extends StatelessWidget {
 
   Widget _buildGroupCard(BuildContext context, Group group, GroupProvider groupProvider) {
     final totalExpenses = group.expenses.fold(0.0, (sum, expense) => sum + expense.amount);
-    final averagePerPerson = group.members.isNotEmpty ? totalExpenses / group.members.length : 0.0;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16.0),
@@ -207,52 +206,7 @@ class GroupsOverviewScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Total Expenses',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 14,
-                          ),
-                        ),
-                        Text(
-                          '\$${totalExpenses.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'Per Person',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 14,
-                          ),
-                        ),
-                        Text(
-                          '\$${averagePerPerson.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+              _buildPersonalBalanceSection(context, group, groupProvider),
               const SizedBox(height: 16),
               Text(
                 'Members: ${group.members.map((p) => p.name).join(', ')}',
@@ -356,6 +310,174 @@ class GroupsOverviewScreen extends StatelessWidget {
               foregroundColor: Colors.red,
             ),
             child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildPersonalBalanceSection(BuildContext context, Group group, GroupProvider groupProvider) {
+    final userMember = groupProvider.getUserMember(group.id);
+    final personalBalance = groupProvider.getUserPersonalBalance(group.id);
+    
+    if (userMember == null) {
+      // User hasn't selected which member they are yet
+      return InkWell(
+        onTap: () => _showMemberSelectionDialog(context, group, groupProvider),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.orange.shade200),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                color: Colors.orange.shade600,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Tap to select which member you are',
+                  style: TextStyle(
+                    color: Colors.orange.shade700,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.orange.shade600,
+                size: 16,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    // User has selected a member, show personal balance
+    final isPositive = personalBalance != null && personalBalance > 0;
+    final balanceColor = isPositive ? Colors.green : Colors.red;
+    
+    return InkWell(
+      onTap: () => _showMemberSelectionDialog(context, group, groupProvider),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Your Balance',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    '${userMember.name}',
+                    style: TextStyle(
+                      color: Colors.grey.shade800,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Balance',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    '${isPositive ? '+' : ''}\$${personalBalance?.toStringAsFixed(2) ?? '0.00'}',
+                    style: TextStyle(
+                      color: balanceColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.edit,
+              color: Colors.grey.shade400,
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  void _showMemberSelectionDialog(BuildContext context, Group group, GroupProvider groupProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Select Your Member in ${group.name}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Which member are you in this group?',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...group.members.map((member) {
+              return RadioListTile<String>(
+                title: Text(member.name),
+                value: member.id,
+                groupValue: groupProvider.getUserMemberId(group.id),
+                onChanged: (value) async {
+                  if (value != null) {
+                    await groupProvider.setUserMember(group.id, value);
+                    Navigator.of(context).pop();
+                    
+                    // Show success message
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('You are now ${member.name} in ${group.name}'),
+                          backgroundColor: Colors.green,
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  }
+                },
+              );
+            }),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
           ),
         ],
       ),

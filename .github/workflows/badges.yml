@@ -18,10 +18,9 @@ jobs:
       uses: schneegans/dynamic-badges-action@v1.6.0
       with:
         auth: ${{ secrets.GIST_SECRET }}
-        gistID: your-gist-id-here
+        gistID: ${{ secrets.GIST_ID }}
         filename: flutter-tests.json
         label: tests
         message: ${{ github.event.workflow_run.conclusion == 'success' && 'passing' || 'failing' }}
         namedLogo: flutter
         color: ${{ github.event.workflow_run.conclusion == 'success' && 'green' || 'red' }}
-        logLevel: 1

@@ -39,6 +39,23 @@ A modern, offline-first Flutter application for managing shared expenses and bud
 - **UI Framework**: Material Design 3
 - **Platforms**: iOS, Android, Web (planned)
 
+## 🏷️ Status Badges
+
+The project automatically generates status badges for build and test status:
+
+![Tests](https://github.com/your-username/buddycount-frontend/blob/main/badges/test-status.svg)
+![Build](https://github.com/your-username/buddycount-frontend/blob/main/badges/build-status.svg)
+
+**Badge Types:**
+- **Tests**: Shows current test status (passing/failing)
+- **Build**: Shows current build status (passing/failing)
+
+**Badge Colors:**
+- 🟢 **Green**: All tests/builds passing
+- 🔴 **Red**: Tests/builds failing
+
+**Note**: Replace `your-username` in the badge URLs with your actual GitHub username.
+
 ## 📋 Prerequisites
 
 - Flutter SDK (3.35.2 or higher)
@@ -76,6 +93,33 @@ A modern, offline-first Flutter application for managing shared expenses and bud
    # Web
    flutter run -d chrome
    ```
+
+## 🚀 CI/CD & Automation
+
+### GitHub Actions Workflows
+
+The project uses GitHub Actions for continuous integration and deployment:
+
+#### **Flutter Tests** (`.github/workflows/flutter_tests.yml`)
+- **Triggers**: Push to main/CI-integration branches, pull requests
+- **Actions**:
+  - Code formatting with `dart format`
+  - Static analysis with `flutter analyze`
+  - Unit tests with `flutter test`
+  - Generates test reports
+
+#### **Badge Generation** (`.github/workflows/simple_badges.yml`)
+- **Triggers**: After Flutter Tests workflow completes
+- **Actions**:
+  - Generates SVG badges for test/build status
+  - Commits badges to repository
+  - Updates automatically on each workflow run
+
+### Badge Generation
+
+Badges are automatically generated and committed to the `badges/` directory:
+- `test-status.svg` - Current test status
+- `build-status.svg` - Current build status
 
 ## 🏗️ Project Structure
 
