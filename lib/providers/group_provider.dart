@@ -9,10 +9,80 @@ class GroupProvider with ChangeNotifier {
   List<Group> _groups = [];
   Group? _currentGroup;
   bool _isInitialized = false;
+  
+  // Map to store which member the current user is in each group
+  // Key: groupId, Value: personId
+  Map<String, String> _userMemberInGroups = {};
 
   List<Group> get groups => _groups;
   Group? get currentGroup => _currentGroup;
   bool get isInitialized => _isInitialized;
+  
+  // Get the current user's member ID for a specific group
+  String? getUserMemberId(String groupId) => _userMemberInGroups[groupId];
+  
+  // Get the current user's Person object for a specific group
+  Person? getUserMember(String groupId) {
+    final memberId = _userMemberInGroups[groupId];
+    if (memberId == null) return null;
+    
+    try {
+      final group = _groups.firstWhere((g) => g.id == groupId);
+      return group.members.firstWhere((p) => p.id == memberId);
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  // Set which member the current user is in a specific group
+  Future<void> setUserMember(String groupId, String personId) async {
+    _userMemberInGroups[groupId] = personId;
+    
+    // For now, just store in memory (we'll add persistence later)
+    print('Set user member mapping: Group $groupId -> Person $personId');
+    
+    notifyListeners();
+  }
+  
+  // Get the current user's personal balance for a specific group
+  double? getUserPersonalBalance(String groupId) {
+    final userMember = getUserMember(groupId);
+    if (userMember == null) return null;
+    
+    try {
+      final group = _groups.firstWhere((g) => g.id == groupId);
+      final balances = _calculateBalances(group);
+      return balances[userMember.id];
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  // Calculate balances for a group (moved from GroupDetailScreen)
+  Map<String, double> _calculateBalances(Group group) {
+    final balances = <String, double>{};
+    
+    // Initialize all balances to 0
+    for (final person in group.members) {
+      balances[person.id] = 0.0;
+    }
+    
+    // Calculate balances based on expenses
+    for (final expense in group.expenses) {
+      final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
+      final splitAmount = expense.amount / expense.splitBetween.length;
+      
+      // Payer gets the full amount
+      balances[payer.id] = (balances[payer.id] ?? 0.0) + expense.amount;
+      
+      // Each person in split pays their share
+      for (final personId in expense.splitBetween) {
+        balances[personId] = (balances[personId] ?? 0.0) - splitAmount;
+      }
+    }
+    
+    return balances;
+  }
   
   // Get groups for a specific person
   List<Group> getGroupsForPerson(String personId) {
