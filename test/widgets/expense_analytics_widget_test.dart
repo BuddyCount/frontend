@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:provider/provider.dart';
 import '../../lib/widgets/expense_analytics_widget.dart';
 import '../../lib/models/group.dart';
 import '../../lib/models/person.dart';
 import '../../lib/models/expense.dart';
-import '../../lib/providers/group_provider.dart';
 
 void main() {
   group('ExpenseAnalyticsWidget Tests', () {

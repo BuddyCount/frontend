@@ -569,19 +569,28 @@ class ExpenseChartPainter extends CustomPainter {
     final maxValue = chartData.map((e) => e.value).reduce((a, b) => a > b ? a : b);
     final valueRange = maxValue - minValue;
     
+    // Safety check for zero range
+    if (valueRange == 0) return;
+    
     final minDate = chartData.first.date;
     final maxDate = chartData.last.date;
     final dateRange = maxDate.difference(minDate).inMilliseconds;
+    
+    // Safety check for zero date range
+    if (dateRange == 0) return;
 
-    // Calculate Y-axis labels
+        // Calculate Y-axis labels
     final yLabels = _calculateYLabels(minValue, maxValue);
     final yLabelWidth = 40.0; // Reduced space for Y-axis labels
     final chartWidth = width - yLabelWidth;
     final chartHeight = height;
-
+    
     // Draw Y-axis grid lines and labels
     for (final label in yLabels) {
       final y = chartHeight - ((label - minValue) / valueRange) * chartHeight;
+      
+      // Skip if y is NaN or invalid
+      if (y.isNaN || y.isInfinite || y < 0 || y > chartHeight) continue;
       
       // Grid line
       canvas.drawLine(
@@ -611,6 +620,9 @@ class ExpenseChartPainter extends CustomPainter {
       final x = yLabelWidth + (point.date.difference(minDate).inMilliseconds / dateRange) * chartWidth;
       final y = chartHeight - ((point.value - minValue) / valueRange) * chartHeight;
       
+      // Skip if coordinates are NaN or invalid
+      if (x.isNaN || x.isInfinite || y.isNaN || y.isInfinite) continue;
+      
       if (i == 0) {
         path.moveTo(x, y);
         fillPath.moveTo(x, chartHeight);
@@ -637,6 +649,9 @@ class ExpenseChartPainter extends CustomPainter {
     for (final point in chartData) {
       final x = yLabelWidth + (point.date.difference(minDate).inMilliseconds / dateRange) * chartWidth;
       final y = chartHeight - ((point.value - minValue) / valueRange) * chartHeight;
+      
+      // Skip if coordinates are NaN or invalid
+      if (x.isNaN || x.isInfinite || y.isNaN || y.isInfinite) continue;
       
       canvas.drawCircle(Offset(x, y), 3, pointPaint);
     }
