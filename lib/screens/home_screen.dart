@@ -78,11 +78,11 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               tooltip: 'Manual Sync',
             ),
-          IconButton(
-            icon: const Icon(Icons.group_add),
-            onPressed: () => _showGroupDialog(context),
-            tooltip: 'Create or Join Group',
-          ),
+                  IconButton(
+          icon: const Icon(Icons.group_add),
+          onPressed: () => _showGroupDialog(context, true),
+          tooltip: 'Create or Join Group',
+        ),
           Consumer<GroupProvider>(
             builder: (context, groupProvider, child) {
               // Only show Add Expense button if there are groups
@@ -206,7 +206,7 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ElevatedButton.icon(
-                  onPressed: () => _showGroupDialog(context),
+                  onPressed: () => _showGroupDialog(context, true),
                   icon: const Icon(Icons.add),
                   label: const Text('Create Group'),
                   style: ElevatedButton.styleFrom(
@@ -215,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 OutlinedButton.icon(
-                  onPressed: () => _showGroupDialog(context),
+                  onPressed: () => _showGroupDialog(context, false),
                   icon: const Icon(Icons.link),
                   label: const Text('Join Group'),
                   style: OutlinedButton.styleFrom(
@@ -316,10 +316,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showGroupDialog(BuildContext context) {
+  void _showGroupDialog(BuildContext context, bool isCreateMode) {
     showDialog(
       context: context,
-      builder: (context) => const GroupDialog(),
+      builder: (context) => GroupDialog(initialCreateMode: isCreateMode),
     ).then((result) {
       if (result != null) {
         // Handle the result - you can update the group provider here

@@ -46,38 +46,154 @@ class ApiService {
   // Join an existing group
   static Future<Map<String, dynamic>> joinGroup(String inviteLink) async {
     try {
+      print('🔗 Attempting to join group via invite link: $inviteLink');
+      
       // Extract group ID from invite link
       final groupId = _extractGroupIdFromLink(inviteLink);
+      print('📋 Extracted group ID: $groupId');
       
-      final response = await http.post(
-        Uri.parse('$baseUrl/groups/$groupId/join'),
+      // Step 1: Send join request to /join/{id}
+      final joinResponse = await http.post(
+        Uri.parse('$baseUrl/join/$groupId'),
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: jsonEncode({
           'inviteLink': inviteLink,
         }),
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Join request timed out after 10 seconds');
+        },
       );
       
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      print('📡 Join API Response: Status ${joinResponse.statusCode}');
+      print('📄 Join Response body: ${joinResponse.body}');
+      
+      if (joinResponse.statusCode == 200 || joinResponse.statusCode == 201) {
+        final joinData = jsonDecode(joinResponse.body);
+        
+        // Extract the actual group ID or token from the response
+        final actualGroupId = joinData['groupId'] ?? joinData['id'] ?? joinData['token'];
+        
+        if (actualGroupId == null) {
+          throw Exception('No group ID or token returned from join request');
+        }
+        
+        print('✅ Successfully joined group, got ID: $actualGroupId');
+        
+        // Step 2: Get group details via /group/{id}
+        final groupResponse = await http.get(
+          Uri.parse('$baseUrl/group/$actualGroupId'),
+          headers: {
+            'Accept': 'application/json',
+          },
+        ).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            throw Exception('Group details request timed out after 10 seconds');
+          },
+        );
+        
+        print('📡 Group Details Response: Status ${groupResponse.statusCode}');
+        print('📄 Group Details body: ${groupResponse.body}');
+        
+        if (groupResponse.statusCode == 200) {
+          final groupData = jsonDecode(groupResponse.body);
+          print('✅ Successfully retrieved group details');
+          
+          // Return combined data: join response + group details
+          return {
+            ...joinData,
+            'groupDetails': groupData,
+            'actualGroupId': actualGroupId,
+          };
+        } else {
+          throw Exception('Failed to get group details: ${groupResponse.statusCode} - ${groupResponse.body}');
+        }
       } else {
-        throw Exception('Failed to join group: ${response.statusCode}');
+        print('❌ Join API Error: ${joinResponse.statusCode} - ${joinResponse.body}');
+        throw Exception('Failed to join group: ${joinResponse.statusCode} - ${joinResponse.body}');
       }
     } catch (e) {
+      print('💥 Exception in joinGroup: $e');
       throw Exception('Error joining group: $e');
     }
   }
   
   // Extract group ID from invite link
   static String _extractGroupIdFromLink(String inviteLink) {
-    // This is a placeholder - adjust based on your actual invite link format
-    // Example: https://buddycount.app/join/abc123
-    final uri = Uri.parse(inviteLink);
-    final pathSegments = uri.pathSegments;
-    if (pathSegments.length >= 2 && pathSegments[0] == 'join') {
-      return pathSegments[1];
+    try {
+      // Handle different invite link formats:
+      // 1. https://buddycount.app/join/abc123
+      // 2. https://buddycount.app/join/abc123/
+      // 3. abc123 (just the ID)
+      
+      // If it's just an ID, return it directly
+      if (!inviteLink.contains('/') && !inviteLink.contains('http')) {
+        return inviteLink.trim();
+      }
+      
+      // Parse as URL
+      final uri = Uri.parse(inviteLink);
+      final pathSegments = uri.pathSegments;
+      
+      // Look for 'join' in the path and extract the ID after it
+      for (int i = 0; i < pathSegments.length - 1; i++) {
+        if (pathSegments[i] == 'join') {
+          final groupId = pathSegments[i + 1];
+          if (groupId.isNotEmpty) {
+            return groupId;
+          }
+        }
+      }
+      
+      // Fallback: try to extract from the last path segment
+      if (pathSegments.isNotEmpty) {
+        final lastSegment = pathSegments.last;
+        if (lastSegment.isNotEmpty && lastSegment != 'join') {
+          return lastSegment;
+        }
+      }
+      
+      throw Exception('Could not extract group ID from invite link: $inviteLink');
+    } catch (e) {
+      throw Exception('Invalid invite link format: $inviteLink. Error: $e');
     }
-    throw Exception('Invalid invite link format');
+  }
+  
+  // Get group details by ID
+  static Future<Map<String, dynamic>> getGroupById(String groupId) async {
+    try {
+      print('📋 Fetching group details for ID: $groupId');
+      
+      final response = await http.get(
+        Uri.parse('$baseUrl/group/$groupId'),
+        headers: {
+          'Accept': 'application/json',
+        },
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Request timed out after 10 seconds');
+        },
+      );
+      
+      print('📡 Get Group Response: Status ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        final groupData = jsonDecode(response.body);
+        print('✅ Successfully retrieved group details');
+        return groupData;
+      } else {
+        print('❌ Get Group Error: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to get group: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('💥 Exception in getGroupById: $e');
+      throw Exception('Error getting group: $e');
+    }
   }
 }

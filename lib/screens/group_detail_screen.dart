@@ -5,6 +5,7 @@ import '../models/group.dart';
 import '../models/expense.dart';
 import 'add_expense_screen.dart';
 import 'package:intl/intl.dart';
+import '../widgets/expense_analytics_widget.dart';
 
 class GroupDetailScreen extends StatelessWidget {
   final Group group;
@@ -58,6 +59,8 @@ class GroupDetailScreen extends StatelessWidget {
                 _buildGroupHeader(currentGroup),
                 const SizedBox(height: 24),
                 _buildBalancesSection(currentGroup),
+                const SizedBox(height: 24),
+                _buildExpenseAnalyticsSection(currentGroup),
                 const SizedBox(height: 24),
                 _buildExpensesSection(context, currentGroup, groupProvider),
               ],
@@ -117,6 +120,10 @@ class GroupDetailScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildExpenseAnalyticsSection(Group group) {
+    return ExpenseAnalyticsWidget(group: group);
   }
 
   Widget _buildBalancesSection(Group group) {

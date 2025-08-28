@@ -2,7 +2,7 @@ name: Flutter Tests
 
 on:
   push:
-    branches: [ main, CI-integration ]
+    branches: [ main, 7-add-ci-integration-for-unit-tests]
   pull_request:
     branches: [ main ]
 

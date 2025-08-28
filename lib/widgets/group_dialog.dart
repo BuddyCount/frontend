@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
+
 import '../services/sync_service.dart';
 
 class GroupDialog extends StatefulWidget {
-  const GroupDialog({super.key});
+  final bool initialCreateMode;
+  
+  const GroupDialog({
+    super.key,
+    this.initialCreateMode = true,
+  });
 
   @override
   State<GroupDialog> createState() => _GroupDialogState();
@@ -15,8 +20,14 @@ class _GroupDialogState extends State<GroupDialog> {
   final _memberNamesController = TextEditingController();
   final _inviteLinkController = TextEditingController();
   
-  bool _isCreatingGroup = true;
+  late bool _isCreatingGroup;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isCreatingGroup = widget.initialCreateMode;
+  }
 
   @override
   void dispose() {
@@ -164,26 +175,28 @@ class _GroupDialogState extends State<GroupDialog> {
           );
         }
       } else {
-        // For joining groups, we'll still try the API first
-        try {
-          final result = await ApiService.joinGroup(_inviteLinkController.text.trim());
+        // For joining groups, use enhanced sync service
+        final syncService = SyncService();
+        await syncService.joinGroupOffline(
+          _inviteLinkController.text.trim(),
+          context,
+        );
+        
+        if (mounted) {
+          Navigator.of(context).pop();
           
-          if (mounted) {
-            Navigator.of(context).pop(result);
+          // Show appropriate message based on connectivity
+          final isOnline = syncService.isOnline;
+          if (isOnline) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Joined group "${result['name']}" successfully!')),
-            );
-          }
-        } catch (e) {
-          // If API fails, show offline message
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Unable to join group while offline. Please try again when connected.'),
-                backgroundColor: Colors.orange,
+              SnackBar(
+                content: Text('✅ Group joined successfully! You can now switch to the group.'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 4),
               ),
             );
           }
+          // Offline message is handled by the sync service
         }
       }
     } catch (e) {

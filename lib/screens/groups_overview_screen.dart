@@ -31,7 +31,7 @@ class GroupsOverviewScreen extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.group_add),
-            onPressed: () => _showGroupDialog(context),
+            onPressed: () => _showGroupDialog(context, true),
             tooltip: 'Create or Join Group',
           ),
         ],
@@ -63,7 +63,7 @@ class GroupsOverviewScreen extends StatelessWidget {
         builder: (context, groupProvider, child) {
           if (groupProvider.groups.isNotEmpty) {
             return FloatingActionButton(
-              onPressed: () => _showGroupDialog(context),
+              onPressed: () => _showGroupDialog(context, true),
               child: const Icon(Icons.add),
             );
           }
@@ -72,6 +72,8 @@ class GroupsOverviewScreen extends StatelessWidget {
       ),
     );
   }
+
+
 
   Widget _buildEmptyState(BuildContext context) {
     return Center(
@@ -107,7 +109,7 @@ class GroupsOverviewScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ElevatedButton.icon(
-                  onPressed: () => _showGroupDialog(context),
+                  onPressed: () => _showGroupDialog(context, true),
                   icon: const Icon(Icons.add),
                   label: const Text('Create Group'),
                   style: ElevatedButton.styleFrom(
@@ -116,7 +118,7 @@ class GroupsOverviewScreen extends StatelessWidget {
                   ),
                 ),
                 OutlinedButton.icon(
-                  onPressed: () => _showGroupDialog(context),
+                  onPressed: () => _showGroupDialog(context, false),
                   icon: const Icon(Icons.link),
                   label: const Text('Join Group'),
                   style: OutlinedButton.styleFrom(
@@ -294,10 +296,10 @@ class GroupsOverviewScreen extends StatelessWidget {
     );
   }
 
-  void _showGroupDialog(BuildContext context) {
+  void _showGroupDialog(BuildContext context, bool isCreateMode) {
     showDialog(
       context: context,
-      builder: (context) => const GroupDialog(),
+      builder: (context) => GroupDialog(initialCreateMode: isCreateMode),
     ).then((result) {
       if (result != null) {
         ScaffoldMessenger.of(context).showSnackBar(
