@@ -8,6 +8,18 @@ import 'add_expense_screen.dart';
 import 'package:intl/intl.dart';
 import '../widgets/expense_analytics_widget.dart';
 
+class Settlement {
+  final String fromId;
+  final String toId;
+  final double amount;
+  
+  const Settlement({
+    required this.fromId,
+    required this.toId,
+    required this.amount,
+  });
+}
+
 class GroupDetailScreen extends StatefulWidget {
   final Group group;
 
@@ -189,6 +201,19 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 ),
               );
             }),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 8),
+            Text(
+              'Debt Settlements',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildDebtSettlements(balances, group),
           ],
         ),
       ),
@@ -561,6 +586,181 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       default:
         return null;
     }
+  }
+
+  Widget _buildDebtSettlements(Map<String, double> balances, Group group) {
+    final settlements = _calculateOptimalSettlements(balances, group);
+    
+    if (settlements.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: Text(
+            'All balances are settled! 🎉',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade600,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: settlements.map((settlement) {
+        final fromPerson = group.members.firstWhere((p) => p.id == settlement.fromId);
+        final toPerson = group.members.firstWhere((p) => p.id == settlement.toId);
+        
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 4.0),
+          padding: const EdgeInsets.all(12.0),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(8.0),
+            border: Border.all(color: Colors.blue.shade200),
+          ),
+          child: Row(
+            children: [
+              // From person (owes money)
+              Expanded(
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Colors.red.shade100,
+                      child: Text(
+                        fromPerson.name[0].toUpperCase(),
+                        style: TextStyle(
+                          color: Colors.red.shade700,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        fromPerson.name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Arrow and amount
+              Column(
+                children: [
+                  Icon(
+                    Icons.arrow_forward,
+                    color: Colors.blue.shade600,
+                    size: 20,
+                  ),
+                  Text(
+                    '\$${settlement.amount.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade700,
+                    ),
+                  ),
+                ],
+              ),
+              // To person (receives money)
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        toPerson.name,
+                        textAlign: TextAlign.end,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Colors.green.shade100,
+                      child: Text(
+                        toPerson.name[0].toUpperCase(),
+                        style: TextStyle(
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  List<Settlement> _calculateOptimalSettlements(Map<String, double> balances, Group group) {
+    final List<Settlement> settlements = [];
+    
+    // Separate positive and negative balances
+    final creditors = <String, double>{};
+    final debtors = <String, double>{};
+    
+    for (final entry in balances.entries) {
+      if (entry.value > 0) {
+        creditors[entry.key] = entry.value;
+      } else if (entry.value < 0) {
+        debtors[entry.key] = entry.value.abs();
+      }
+    }
+    
+    // Sort by amount (largest first)
+    final sortedCreditors = creditors.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final sortedDebtors = debtors.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    
+    // Calculate optimal settlements
+    int creditorIndex = 0;
+    int debtorIndex = 0;
+    
+    while (creditorIndex < sortedCreditors.length && debtorIndex < sortedDebtors.length) {
+      final creditor = sortedCreditors[creditorIndex];
+      final debtor = sortedDebtors[debtorIndex];
+      
+      final amount = creditor.value < debtor.value ? creditor.value : debtor.value;
+      
+      settlements.add(Settlement(
+        fromId: debtor.key,
+        toId: creditor.key,
+        amount: amount,
+      ));
+      
+      // Update remaining amounts
+      if (creditor.value <= debtor.value) {
+        creditorIndex++;
+        sortedDebtors[debtorIndex] = MapEntry(debtor.key, debtor.value - creditor.value);
+        if (sortedDebtors[debtorIndex].value == 0) {
+          debtorIndex++;
+        }
+      } else {
+        debtorIndex++;
+        sortedCreditors[creditorIndex] = MapEntry(creditor.key, creditor.value - debtor.value);
+        if (sortedCreditors[creditorIndex].value == 0) {
+          creditorIndex++;
+        }
+      }
+    }
+    
+    return settlements;
   }
 }
 
