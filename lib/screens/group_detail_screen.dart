@@ -3,20 +3,29 @@ import 'package:provider/provider.dart';
 import '../providers/group_provider.dart';
 import '../models/group.dart';
 import '../models/expense.dart';
+import '../models/person.dart';
 import 'add_expense_screen.dart';
 import 'package:intl/intl.dart';
 import '../widgets/expense_analytics_widget.dart';
 
-class GroupDetailScreen extends StatelessWidget {
+class GroupDetailScreen extends StatefulWidget {
   final Group group;
 
   const GroupDetailScreen({super.key, required this.group});
 
   @override
+  State<GroupDetailScreen> createState() => _GroupDetailScreenState();
+}
+
+class _GroupDetailScreenState extends State<GroupDetailScreen> {
+  Person? _selectedMember;
+  String _selectedTimeRange = 'all'; // 7d, 30d, 90d, 1y, all
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(group.name),
+        title: Text(widget.group.name),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
@@ -47,8 +56,8 @@ class GroupDetailScreen extends StatelessWidget {
         builder: (context, groupProvider, child) {
           // Get the latest version of the group from the provider
           final currentGroup = groupProvider.groups.firstWhere(
-            (g) => g.id == group.id,
-            orElse: () => group,
+            (g) => g.id == widget.group.id,
+            orElse: () => widget.group,
           );
 
           return SingleChildScrollView(
@@ -72,7 +81,7 @@ class GroupDetailScreen extends StatelessWidget {
         onPressed: () {
           // Set the current group before navigating to AddExpenseScreen
           final groupProvider = Provider.of<GroupProvider>(context, listen: false);
-          groupProvider.setCurrentGroup(group);
+          groupProvider.setCurrentGroup(widget.group);
           
           Navigator.push(
             context,
@@ -179,7 +188,7 @@ class GroupDetailScreen extends StatelessWidget {
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),
@@ -240,7 +249,7 @@ class GroupDetailScreen extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  'Total: \$${group.expenses.fold(0.0, (sum, expense) => sum + expense.amount).toStringAsFixed(2)}',
+                  'Total: \$${_getFilteredExpenses(group).fold(0.0, (sum, expense) => sum + expense.amount).toStringAsFixed(2)}',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
@@ -250,7 +259,9 @@ class GroupDetailScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            ...group.expenses.map((expense) => _buildExpenseTile(context, expense, group, groupProvider)),
+            _buildExpenseFilters(context, group),
+            const SizedBox(height: 16),
+            ..._getFilteredExpenses(group).map((expense) => _buildExpenseTile(context, expense, group, groupProvider)),
           ],
         ),
       ),
@@ -401,7 +412,7 @@ class GroupDetailScreen extends StatelessWidget {
       builder: (context) => AlertDialog(
         title: const Text('Delete Group'),
         content: Text(
-          'Are you sure you want to delete "${group.name}"?\n\n'
+          'Are you sure you want to delete "${widget.group.name}"?\n\n'
           'This will permanently remove the group and all its expenses. '
           'This action cannot be undone.',
         ),
@@ -426,7 +437,7 @@ class GroupDetailScreen extends StatelessWidget {
               );
               
               // Delete the group
-              await groupProvider.removeGroup(group.id);
+              await groupProvider.removeGroup(widget.group.id);
               
               // Navigate back to groups overview
               if (context.mounted) {
@@ -435,7 +446,7 @@ class GroupDetailScreen extends StatelessWidget {
                 // Show success message
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Group "${group.name}" deleted successfully'),
+                    content: Text('Group "${widget.group.name}" deleted successfully'),
                     backgroundColor: Colors.green,
                   ),
                 );
@@ -449,6 +460,107 @@ class GroupDetailScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildExpenseFilters(BuildContext context, Group group) {
+    return Row(
+      children: [
+        // Member filter
+        Expanded(
+          child: DropdownButtonFormField<Person?>(
+            initialValue: _selectedMember,
+            decoration: const InputDecoration(
+              labelText: 'Filter by Member',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+            items: [
+              const DropdownMenuItem<Person?>(
+                value: null,
+                child: Text('All Members'),
+              ),
+              ...group.members.map((member) => DropdownMenuItem<Person?>(
+                value: member,
+                child: Text(member.name),
+              )),
+            ],
+            onChanged: (Person? value) {
+              setState(() {
+                _selectedMember = value;
+              });
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Time range filter
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            initialValue: _selectedTimeRange,
+            decoration: const InputDecoration(
+              labelText: 'Time Range',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'all', child: Text('All Time')),
+              DropdownMenuItem(value: '7d', child: Text('Last 7 days')),
+              DropdownMenuItem(value: '30d', child: Text('Last 30 days')),
+              DropdownMenuItem(value: '90d', child: Text('Last 90 days')),
+              DropdownMenuItem(value: '1y', child: Text('Last year')),
+            ],
+            onChanged: (String? value) {
+              setState(() {
+                _selectedTimeRange = value ?? 'all';
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Expense> _getFilteredExpenses(Group group) {
+    List<Expense> filteredExpenses = List.from(group.expenses);
+    
+    // Filter by member if selected
+    if (_selectedMember != null) {
+      filteredExpenses = filteredExpenses.where((expense) => 
+        expense.paidBy == _selectedMember!.id || 
+        expense.splitBetween.contains(_selectedMember!.id)
+      ).toList();
+    }
+    
+    // Filter by time range
+    if (_selectedTimeRange != 'all') {
+      final now = DateTime.now();
+      final cutoffDate = _getCutoffDate(now);
+      
+      if (cutoffDate != null) {
+        filteredExpenses = filteredExpenses.where((expense) => 
+          expense.date.isAfter(cutoffDate)
+        ).toList();
+      }
+    }
+    
+    // Sort by date (newest first)
+    filteredExpenses.sort((a, b) => b.date.compareTo(a.date));
+    
+    return filteredExpenses;
+  }
+
+  DateTime? _getCutoffDate(DateTime now) {
+    switch (_selectedTimeRange) {
+      case '7d':
+        return now.subtract(const Duration(days: 7));
+      case '30d':
+        return now.subtract(const Duration(days: 30));
+      case '90d':
+        return now.subtract(const Duration(days: 90));
+      case '1y':
+        return DateTime(now.year - 1, now.month, now.day);
+      default:
+        return null;
+    }
   }
 }
 
