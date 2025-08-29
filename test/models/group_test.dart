@@ -27,6 +27,8 @@ void main() {
       testGroup = Group(
         id: 'group1',
         name: 'Test Group',
+        description: 'Test Description',
+        currency: 'USD',
         members: [person1, person2],
         expenses: [expense1],
       );
@@ -96,6 +98,8 @@ void main() {
       final emptyGroup = Group(
         id: 'empty',
         name: 'Empty Group',
+        description: 'Empty Description',
+        currency: 'USD',
         members: [],
         expenses: [],
       );

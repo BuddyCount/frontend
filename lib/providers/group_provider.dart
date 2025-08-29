@@ -38,8 +38,13 @@ class GroupProvider with ChangeNotifier {
   Future<void> setUserMember(String groupId, String personId) async {
     _userMemberInGroups[groupId] = personId;
     
-    // For now, just store in memory (we'll add persistence later)
-    print('Set user member mapping: Group $groupId -> Person $personId');
+    // Save to local storage for persistence
+    try {
+      await LocalStorageService.saveUserMemberMapping(groupId, personId);
+      print('Saved user member mapping: Group $groupId -> Person $personId');
+    } catch (e) {
+      print('Error saving user member mapping: $e');
+    }
     
     notifyListeners();
   }
@@ -120,6 +125,12 @@ class GroupProvider with ChangeNotifier {
       
       _groups = storedGroups;
       
+      // Load user member mappings from storage
+      print('Loading user member mappings from storage...');
+      final storedUserMembers = LocalStorageService.getAllUserMemberMappings();
+      _userMemberInGroups = storedUserMembers;
+      print('Found ${storedUserMembers.length} user member mappings in storage');
+      
       if (_groups.isNotEmpty) {
         _currentGroup = _groups.first;
         print('Set current group: ${_currentGroup!.name}');
@@ -128,7 +139,7 @@ class GroupProvider with ChangeNotifier {
       }
       
       _isInitialized = true;
-      print('Initialization complete. Total groups: ${_groups.length}');
+      print('Initialization complete. Total groups: ${_groups.length}, user members: ${_userMemberInGroups.length}');
       notifyListeners();
     } catch (e) {
       print('Error loading from storage: $e');

@@ -9,25 +9,19 @@ class Person extends HiveObject {
   
   @HiveField(1)
   final String name;
-  
-  @HiveField(2)
-  double balance;
 
   Person({
     required this.id,
     required this.name,
-    this.balance = 0.0,
   });
 
   Person copyWith({
     String? id,
     String? name,
-    double? balance,
   }) {
     return Person(
       id: id ?? this.id,
       name: name ?? this.name,
-      balance: balance ?? this.balance,
     );
   }
 
@@ -35,7 +29,6 @@ class Person extends HiveObject {
     return {
       'id': id,
       'name': name,
-      'balance': balance,
     };
   }
 
@@ -43,7 +36,6 @@ class Person extends HiveObject {
     return Person(
       id: json['id'],
       name: json['name'],
-      balance: (json['balance'] as num?)?.toDouble() ?? 0.0,
     );
   }
 } 

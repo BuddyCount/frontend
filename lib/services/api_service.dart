@@ -4,20 +4,45 @@ import 'package:http/http.dart' as http;
 class ApiService {
   static const String baseUrl = 'https://api.buddycount.duckdns.org';
   
+  // Test connectivity to the backend
+  static Future<bool> testConnectivity() async {
+    try {
+      print('🔍 Testing connectivity to: $baseUrl');
+      final response = await http.get(
+        Uri.parse('$baseUrl'),
+        headers: {'Accept': 'application/json'},
+      ).timeout(const Duration(seconds: 5));
+      
+      print('🔍 Connectivity test response: ${response.statusCode}');
+      return response.statusCode < 500; // Any response means we can reach the server
+    } catch (e) {
+      print('🔍 Connectivity test failed: $e');
+      return false;
+    }
+  }
+  
   // Create a new group
-  static Future<Map<String, dynamic>> createGroup(String groupName, List<String> memberNames) async {
+  static Future<Map<String, dynamic>> createGroup(String groupName, List<String> memberNames, {String description = '', String currency = 'USD'}) async {
     try {
       print('🚀 Creating group via API: $groupName with ${memberNames.length} members');
       
+      // Convert member names to the API format
+      final users = memberNames.map((name) => {
+        'id': name.toLowerCase().replaceAll(' ', '_'), // Generate simple ID from name
+        'name': name.trim(),
+      }).toList();
+      
       final response = await http.post(
-        Uri.parse('$baseUrl/groups'),
+        Uri.parse('$baseUrl/group'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
         body: jsonEncode({
           'name': groupName,
-          'members': memberNames,
+          'description': description,
+          'currency': currency,
+          'users': users,
         }),
       ).timeout(
         const Duration(seconds: 10),
@@ -84,9 +109,9 @@ class ApiService {
         
         print('✅ Successfully joined group, got ID: $actualGroupId');
         
-        // Step 2: Get group details via /group/{id}
+        // Step 2: Get group details via /groups/{id}
         final groupResponse = await http.get(
-          Uri.parse('$baseUrl/group/$actualGroupId'),
+          Uri.parse('$baseUrl/groups/$actualGroupId'),
           headers: {
             'Accept': 'application/json',
           },
@@ -170,7 +195,7 @@ class ApiService {
       print('📋 Fetching group details for ID: $groupId');
       
       final response = await http.get(
-        Uri.parse('$baseUrl/group/$groupId'),
+        Uri.parse('$baseUrl/groups/$groupId'),
         headers: {
           'Accept': 'application/json',
         },
@@ -194,6 +219,38 @@ class ApiService {
     } catch (e) {
       print('💥 Exception in getGroupById: $e');
       throw Exception('Error getting group: $e');
+    }
+  }
+  
+  // Delete a group
+  static Future<bool> deleteGroup(String groupId) async {
+    try {
+      print('🗑️ Deleting group via API: $groupId');
+      
+      final response = await http.delete(
+        Uri.parse('$baseUrl/group/$groupId'),
+        headers: {
+          'Accept': 'application/json',
+        },
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Delete request timed out after 10 seconds');
+        },
+      );
+      
+      print('📡 Delete Group Response: Status ${response.statusCode}');
+      
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        print('✅ Group deleted successfully via API');
+        return true;
+      } else {
+        print('❌ Delete Group Error: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to delete group: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('💥 Exception in deleteGroup: $e');
+      throw Exception('Error deleting group: $e');
     }
   }
 }

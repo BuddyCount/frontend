@@ -4,6 +4,7 @@ import '../providers/group_provider.dart';
 import '../models/group.dart';
 import '../models/expense.dart';
 import '../models/person.dart';
+import '../services/sync_service.dart';
 import 'add_expense_screen.dart';
 import 'package:intl/intl.dart';
 import '../widgets/expense_analytics_widget.dart';
@@ -450,8 +451,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             onPressed: () async {
               Navigator.of(context).pop();
               
-              // Get the GroupProvider
-              final groupProvider = Provider.of<GroupProvider>(context, listen: false);
+              // Note: groupProvider is no longer needed since we use SyncService directly
               
               // Show loading indicator
               ScaffoldMessenger.of(context).showSnackBar(
@@ -461,8 +461,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 ),
               );
               
-              // Delete the group
-              await groupProvider.removeGroup(widget.group.id);
+              // Use sync service to delete the group
+              final syncService = SyncService();
+              await syncService.deleteGroupOffline(widget.group.id, context);
               
               // Navigate back to groups overview
               if (context.mounted) {
