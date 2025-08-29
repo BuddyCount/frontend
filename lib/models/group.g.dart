@@ -19,28 +19,40 @@ class GroupAdapter extends TypeAdapter<Group> {
     return Group(
       id: fields[0] as String,
       name: fields[1] as String,
-      members: (fields[2] as List).cast<Person>(),
-      expenses: (fields[3] as List?)?.cast<Expense>(),
-      createdAt: fields[4] as DateTime?,
-      updatedAt: fields[5] as DateTime?,
+      description: fields[2] as String?,
+      currency: fields[3] as String,
+      members: (fields[4] as List).cast<Person>(),
+      expenses: (fields[5] as List?)?.cast<Expense>(),
+      linkToken: fields[6] as String?,
+      version: fields[7] as int,
+      createdAt: fields[8] as DateTime?,
+      updatedAt: fields[9] as DateTime?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Group obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
       ..write(obj.name)
       ..writeByte(2)
-      ..write(obj.members)
+      ..write(obj.description)
       ..writeByte(3)
-      ..write(obj.expenses)
+      ..write(obj.currency)
       ..writeByte(4)
-      ..write(obj.createdAt)
+      ..write(obj.members)
       ..writeByte(5)
+      ..write(obj.expenses)
+      ..writeByte(6)
+      ..write(obj.linkToken)
+      ..writeByte(7)
+      ..write(obj.version)
+      ..writeByte(8)
+      ..write(obj.createdAt)
+      ..writeByte(9)
       ..write(obj.updatedAt);
   }
 

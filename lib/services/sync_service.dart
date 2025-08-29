@@ -23,6 +23,7 @@ class SyncService {
     // Check initial connectivity
     final connectivityResult = await Connectivity().checkConnectivity();
     _isOnline = connectivityResult != ConnectivityResult.none;
+    print('🔍 SyncService initialized: _isOnline = $_isOnline, connectivity = $connectivityResult');
 
     // Listen to connectivity changes
     _connectivitySubscription = Connectivity()
@@ -53,44 +54,94 @@ class SyncService {
       });
     }
   }
+  
+  // Manually check connectivity status
+  Future<bool> checkConnectivity() async {
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final wasOnline = _isOnline;
+      _isOnline = connectivityResult != ConnectivityResult.none;
+      
+      if (wasOnline != _isOnline) {
+        print('🔍 Connectivity changed: $_isOnline (${connectivityResult.name})');
+      }
+      
+      return _isOnline;
+    } catch (e) {
+      print('🔍 Error checking connectivity: $e');
+      _isOnline = false;
+      return false;
+    }
+  }
 
   // Create group (online-first, offline-fallback)
-  Future<void> createGroupOffline(String name, List<String> memberNames, BuildContext context) async {
-    if (_isOnline) {
-      // Try to create group via API first
-      try {
-        print('🌐 Attempting to create group via API: $name');
-        final apiResponse = await ApiService.createGroup(name, memberNames);
+  Future<void> createGroupOffline(String name, List<String> memberNames, BuildContext context, {String description = '', String currency = 'USD'}) async {
+    print('🔍 SyncService: _isOnline = $_isOnline');
+    
+    // Double-check connectivity before making API call
+    final isActuallyOnline = await checkConnectivity();
+    print('🔍 Double-check connectivity: isActuallyOnline = $isActuallyOnline');
+    
+    if (isActuallyOnline) {
+      // Test backend connectivity specifically
+      final backendReachable = await ApiService.testConnectivity();
+      print('🔍 Backend connectivity test: $backendReachable');
+      
+      if (backendReachable) {
+        // Try to create group via API first
+        try {
+          print('🌐 Attempting to create group via API: $name');
+          print('📤 Request payload: name=$name, description=$description, currency=$currency, members=$memberNames');
+          
+          final apiResponse = await ApiService.createGroup(name, memberNames, description: description, currency: currency);
         
-        // API succeeded - create group with backend ID
-        final backendGroupId = apiResponse['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
-        
-        // Create unique IDs for each member
-        final members = memberNames.map((name) => 
-          Person(id: '${DateTime.now().millisecondsSinceEpoch}_${name.hashCode}', name: name)
-        ).toList();
-        
-        final group = Group(
-          id: backendGroupId,
-          name: name,
-          members: members,
-        );
+          // API succeeded - create group with backend ID
+          final backendGroupId = apiResponse['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
+          final linkToken = apiResponse['linkToken']?.toString();
+          
+          // Convert API users to Person objects
+          final members = (apiResponse['users'] as List<dynamic>? ?? [])
+              .map((user) => Person(
+                    id: user['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+                    name: user['name'] ?? 'Unknown',
+                  ))
+              .toList();
+          
+          final group = Group(
+            id: backendGroupId,
+            name: name,
+            description: apiResponse['description'] ?? '',
+            currency: apiResponse['currency'] ?? 'USD',
+            members: members,
+            linkToken: linkToken,
+            version: apiResponse['version'] ?? 1,
+            createdAt: DateTime.parse(apiResponse['createdAt']),
+            updatedAt: DateTime.parse(apiResponse['updatedAt']),
+          );
 
-        // Save to local storage with backend ID
-        await LocalStorageService.saveGroup(group);
-        
-        // Update the provider
-        if (context.mounted) {
-          final provider = Provider.of<GroupProvider>(context, listen: false);
-          provider.addGroup(group);
+          // Save to local storage with backend ID
+          await LocalStorageService.saveGroup(group);
+          
+          // Update the provider
+          if (context.mounted) {
+            final provider = Provider.of<GroupProvider>(context, listen: false);
+            provider.addGroup(group);
+          }
+          
+          print('✅ Group created successfully via API with ID: $backendGroupId');
+          return;
+          
+        } catch (e) {
+          print('⚠️ API creation failed, falling back to offline mode: $e');
+          print('🔍 Error details: ${e.toString()}');
+          print('🔍 Error type: ${e.runtimeType}');
+          if (e is Exception) {
+            print('🔍 Exception message: ${e.toString()}');
+          }
+          // Fall through to offline creation
         }
-        
-        print('✅ Group created successfully via API with ID: $backendGroupId');
-        return;
-        
-      } catch (e) {
-        print('⚠️ API creation failed, falling back to offline mode: $e');
-        // Fall through to offline creation
+      } else {
+        print('⚠️ Backend not reachable, falling back to offline mode');
       }
     }
     
@@ -106,6 +157,8 @@ class SyncService {
     final group = Group(
       id: groupId,
       name: name,
+      description: description,
+      currency: currency,
       members: members,
     );
 
@@ -126,6 +179,79 @@ class SyncService {
     });
 
     print('📱 Group created offline with ID: $groupId (will sync when online)');
+  }
+  
+  // Delete group (online-first, offline-fallback)
+  Future<void> deleteGroupOffline(String groupId, BuildContext context) async {
+    print('🔍 SyncService: Deleting group $groupId, _isOnline = $_isOnline');
+    
+    // Double-check connectivity before making API call
+    final isActuallyOnline = await checkConnectivity();
+    print('🔍 Double-check connectivity: isActuallyOnline = $isActuallyOnline');
+    
+    if (isActuallyOnline) {
+      // Test backend connectivity specifically
+      final backendReachable = await ApiService.testConnectivity();
+      print('🔍 Backend connectivity test: $backendReachable');
+      
+      if (backendReachable) {
+        // Try to delete group via API first
+        try {
+          print('🌐 Attempting to delete group via API: $groupId');
+          
+          final success = await ApiService.deleteGroup(groupId);
+          
+          if (success) {
+            // API succeeded - remove from local storage and provider
+            await LocalStorageService.deleteGroup(groupId);
+            
+            // Also remove user member mapping for this group
+            await LocalStorageService.removeUserMemberMapping(groupId);
+            
+            if (context.mounted) {
+              final provider = Provider.of<GroupProvider>(context, listen: false);
+              provider.removeGroup(groupId);
+            }
+            
+            print('✅ Group deleted successfully via API: $groupId');
+            return;
+          }
+          
+        } catch (e) {
+          print('⚠️ API deletion failed, falling back to offline mode: $e');
+          print('🔍 Error details: ${e.toString()}');
+          print('🔍 Error type: ${e.runtimeType}');
+          if (e is Exception) {
+            print('🔍 Exception message: ${e.toString()}');
+          }
+          // Fall through to offline deletion
+        }
+      } else {
+        print('⚠️ Backend not reachable, falling back to offline mode');
+      }
+    }
+    
+    // Offline deletion (fallback or when offline)
+    print('📱 Deleting group offline: $groupId');
+    
+    // Remove from local storage immediately
+    await LocalStorageService.deleteGroup(groupId);
+    
+    // Also remove user member mapping for this group
+    await LocalStorageService.removeUserMemberMapping(groupId);
+    
+    // Update the provider
+    if (context.mounted) {
+      final provider = Provider.of<GroupProvider>(context, listen: false);
+      provider.removeGroup(groupId);
+    }
+
+    // Add to pending operations for later sync
+    await LocalStorageService.addPendingOperation('delete_group', {
+      'groupId': groupId,
+    });
+
+    print('📱 Group deleted offline with ID: $groupId (will sync when online)');
   }
   
   // Join group (online-first, offline-fallback)
@@ -152,7 +278,13 @@ class SyncService {
           final group = Group(
             id: actualGroupId,
             name: groupDetails['name'] ?? 'Unknown Group',
+            description: groupDetails['description'] ?? '',
+            currency: groupDetails['currency'] ?? 'USD',
             members: members,
+            linkToken: groupDetails['linkToken'],
+            version: groupDetails['version'] ?? 1,
+            createdAt: DateTime.parse(groupDetails['createdAt']),
+            updatedAt: DateTime.parse(groupDetails['updatedAt']),
           );
           
           // Save to local storage

@@ -18,6 +18,7 @@ class GroupDialog extends StatefulWidget {
 class _GroupDialogState extends State<GroupDialog> {
   final _formKey = GlobalKey<FormState>();
   final _groupNameController = TextEditingController();
+  final _descriptionController = TextEditingController();
   final _memberNamesController = TextEditingController();
   final _inviteLinkController = TextEditingController();
   
@@ -25,6 +26,7 @@ class _GroupDialogState extends State<GroupDialog> {
   bool _isLoading = false;
   String? _selectedMemberId;
   List<Person> _availableMembers = [];
+  String _selectedCurrency = 'USD';
 
   @override
   void initState() {
@@ -77,6 +79,33 @@ class _GroupDialogState extends State<GroupDialog> {
                     return 'Please enter a group name';
                   }
                   return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Description (optional)',
+                  border: OutlineInputBorder(),
+                  hintText: 'Family group, Work team, etc.',
+                ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedCurrency,
+                decoration: const InputDecoration(
+                  labelText: 'Currency',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'USD', child: Text('USD')),
+                  DropdownMenuItem(value: 'EUR', child: Text('EUR')),
+                  DropdownMenuItem(value: 'CHF', child: Text('CHF')),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCurrency = value!;
+                  });
                 },
               ),
               const SizedBox(height: 16),
@@ -161,6 +190,8 @@ class _GroupDialogState extends State<GroupDialog> {
           _groupNameController.text.trim(),
           memberNames,
           context,
+          description: _descriptionController.text.trim(),
+          currency: _selectedCurrency,
         );
         
         if (mounted) {

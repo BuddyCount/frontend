@@ -9,28 +9,24 @@ void main() {
       testPerson = Person(
         id: '1',
         name: 'Alice',
-        balance: 25.50,
       );
     });
 
     test('should create a person with all required fields', () {
       expect(testPerson.id, '1');
       expect(testPerson.name, 'Alice');
-      expect(testPerson.balance, 25.50);
     });
 
     test('should create a person from JSON', () {
       final json = {
         'id': '1',
         'name': 'Alice',
-        'balance': 25.50,
       };
 
       final person = Person.fromJson(json);
       
       expect(person.id, '1');
       expect(person.name, 'Alice');
-      expect(person.balance, 25.50);
     });
 
     test('should convert person to JSON', () {
@@ -38,48 +34,45 @@ void main() {
       
       expect(json['id'], '1');
       expect(json['name'], 'Alice');
-      expect(json['balance'], 25.50);
     });
 
     test('should create a copy of person with modifications', () {
       final modifiedPerson = testPerson.copyWith(
         name: 'Bob',
-        balance: 0.0,
       );
       
       expect(modifiedPerson.id, '1');
       expect(modifiedPerson.name, 'Bob');
-      expect(modifiedPerson.balance, 0.0);
     });
 
-    test('should handle zero balance', () {
-      final zeroBalancePerson = Person(
+    test('should handle person creation', () {
+      final newPerson = Person(
         id: '2',
         name: 'Bob',
-        balance: 0.0,
       );
       
-      expect(zeroBalancePerson.balance, 0.0);
+      expect(newPerson.id, '2');
+      expect(newPerson.name, 'Bob');
     });
 
-    test('should handle negative balance', () {
-      final negativeBalancePerson = Person(
+    test('should handle person with special characters', () {
+      final specialPerson = Person(
         id: '3',
-        name: 'Charlie',
-        balance: -15.75,
+        name: 'Charlie-O\'Connor',
       );
       
-      expect(negativeBalancePerson.balance, -15.75);
+      expect(specialPerson.id, '3');
+      expect(specialPerson.name, 'Charlie-O\'Connor');
     });
 
-    test('should handle decimal balance precision', () {
-      final preciseBalancePerson = Person(
+    test('should handle person with numbers in name', () {
+      final numberPerson = Person(
         id: '4',
-        name: 'David',
-        balance: 12.345,
+        name: 'David123',
       );
       
-      expect(preciseBalancePerson.balance, 12.345);
+      expect(numberPerson.id, '4');
+      expect(numberPerson.name, 'David123');
     });
   });
 }

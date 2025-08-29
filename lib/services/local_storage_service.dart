@@ -7,10 +7,12 @@ class LocalStorageService {
   static const String _groupsBoxName = 'groups';
   static const String _expensesBoxName = 'expenses';
   static const String _pendingOperationsBoxName = 'pending_operations';
+  static const String _userMembersBoxName = 'user_members';
   
   static late Box<Group> _groupsBox;
   static late Box<Expense> _expensesBox;
   static late Box<Map> _pendingOperationsBox;
+  static late Box<String> _userMembersBox;
   
   static Future<void> initialize() async {
     await Hive.initFlutter();
@@ -24,6 +26,7 @@ class LocalStorageService {
     _groupsBox = await Hive.openBox<Group>(_groupsBoxName);
     _expensesBox = await Hive.openBox<Expense>(_expensesBoxName);
     _pendingOperationsBox = await Hive.openBox<Map>(_pendingOperationsBoxName);
+    _userMembersBox = await Hive.openBox<String>(_userMembersBoxName);
   }
   
   // Groups
@@ -109,15 +112,41 @@ class LocalStorageService {
     await _pendingOperationsBox.delete(id);
   }
   
+  // User Member Mappings
+  static Future<void> saveUserMemberMapping(String groupId, String personId) async {
+    await _userMembersBox.put(groupId, personId);
+  }
+  
+  static String? getUserMemberMapping(String groupId) {
+    return _userMembersBox.get(groupId);
+  }
+  
+  static Map<String, String> getAllUserMemberMappings() {
+    final mappings = <String, String>{};
+    for (final key in _userMembersBox.keys) {
+      final personId = _userMembersBox.get(key);
+      if (personId != null) {
+        mappings[key] = personId;
+      }
+    }
+    return mappings;
+  }
+  
+  static Future<void> removeUserMemberMapping(String groupId) async {
+    await _userMembersBox.delete(groupId);
+  }
+  
   static Future<void> clearAllData() async {
     await _groupsBox.clear();
     await _expensesBox.clear();
     await _pendingOperationsBox.clear();
+    await _userMembersBox.clear();
   }
   
   static Future<void> close() async {
     await _groupsBox.close();
     await _expensesBox.close();
     await _pendingOperationsBox.close();
+    await _userMembersBox.close();
   }
 }

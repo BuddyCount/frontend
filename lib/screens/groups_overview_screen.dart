@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/group_provider.dart';
 import '../widgets/group_dialog.dart';
 import '../models/group.dart';
+import '../services/sync_service.dart';
 import 'group_detail_screen.dart';
 
 class GroupsOverviewScreen extends StatelessWidget {
@@ -135,7 +136,6 @@ class GroupsOverviewScreen extends StatelessWidget {
   }
 
   Widget _buildGroupCard(BuildContext context, Group group, GroupProvider groupProvider) {
-    final totalExpenses = group.expenses.fold(0.0, (sum, expense) => sum + expense.amount);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16.0),
@@ -293,8 +293,9 @@ class GroupsOverviewScreen extends StatelessWidget {
                 ),
               );
               
-              // Delete the group
-              await groupProvider.removeGroup(group.id);
+              // Use sync service to delete the group
+              final syncService = SyncService();
+              await syncService.deleteGroupOffline(group.id, context);
               
               // Show success message
               if (context.mounted) {
