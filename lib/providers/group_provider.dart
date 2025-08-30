@@ -74,13 +74,25 @@ class GroupProvider with ChangeNotifier {
     
     // Calculate balances based on expenses
     for (final expense in group.expenses) {
+      // Convert expense amount to group currency if different
+      double expenseAmountInGroupCurrency = expense.amount;
+      
+      if (expense.currency != group.currency && expense.exchangeRate != null) {
+        // Convert to group currency using exchange rate
+        expenseAmountInGroupCurrency = expense.amount * expense.exchangeRate!;
+        print('💰 Converting ${expense.amount} ${expense.currency} to ${expenseAmountInGroupCurrency} ${group.currency} (rate: ${expense.exchangeRate})');
+      } else if (expense.currency != group.currency && expense.exchangeRate == null) {
+        // No exchange rate provided, use 1:1 (this might not be accurate)
+        print('⚠️ No exchange rate for ${expense.amount} ${expense.currency} to ${group.currency}, using 1:1');
+      }
+      
       final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
-      final splitAmount = expense.amount / expense.splitBetween.length;
+      final splitAmount = expenseAmountInGroupCurrency / expense.splitBetween.length;
       
-      // Payer gets the full amount
-      balances[payer.id] = (balances[payer.id] ?? 0.0) + expense.amount;
+      // Payer gets the full amount (in group currency)
+      balances[payer.id] = (balances[payer.id] ?? 0.0) + expenseAmountInGroupCurrency;
       
-      // Each person in split pays their share
+      // Each person in split pays their share (in group currency)
       for (final personId in expense.splitBetween) {
         balances[personId] = (balances[personId] ?? 0.0) - splitAmount;
       }
