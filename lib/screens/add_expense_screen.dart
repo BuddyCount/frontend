@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/group_provider.dart';
 import '../models/expense.dart';
+import '../services/api_service.dart';
 
 import 'package:intl/intl.dart';
 
@@ -20,6 +21,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   String _selectedPayer = '';
   DateTime _selectedDate = DateTime.now();
   final List<String> _selectedMembers = [];
+  String _selectedCategory = 'FOOD';
+  final TextEditingController _exchangeRateController = TextEditingController(text: '1.0');
 
   @override
   void initState() {
@@ -37,6 +40,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           // Fallback to first member if user hasn't selected one
           _selectedPayer = groupProvider.currentGroup!.members.first.id;
           print('No user member selected, using first member as payer');
+        }
+        
+        // Auto-fill currency and exchange rate based on group
+        _selectedCurrency = groupProvider.currentGroup!.currency;
+        if (_selectedCurrency != groupProvider.currentGroup!.currency) {
+          // Different currency, set exchange rate to 1.0 as default
+          _exchangeRateController.text = '1.0';
+          print('Different currency detected, set default exchange rate to 1.0');
         }
         
         for (var person in groupProvider.currentGroup!.members) {
@@ -122,7 +133,70 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                           onChanged: (value) {
                             setState(() {
                               _selectedCurrency = value!;
+                              
+                              // Auto-update exchange rate when currency changes
+                              if (value != null) {
+                                final currentGroup = Provider.of<GroupProvider>(context, listen: false).currentGroup;
+                                if (currentGroup != null && value != currentGroup.currency) {
+                                  // Different currency, set exchange rate to 1.0 as default
+                                  _exchangeRateController.text = '1.0';
+                                  print('Currency changed to $value, set default exchange rate to 1.0');
+                                } else if (value == currentGroup?.currency) {
+                                  // Same currency, set exchange rate to 1.0
+                                  _exchangeRateController.text = '1.0';
+                                  print('Currency matches group currency, set exchange rate to 1.0');
+                                }
+                              }
                             });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _selectedCategory,
+                          decoration: const InputDecoration(
+                            labelText: 'Category',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'FOOD', child: Text('Food')),
+                            DropdownMenuItem(value: 'TRANSPORT', child: Text('Transport')),
+                            DropdownMenuItem(value: 'ENTERTAINMENT', child: Text('Entertainment')),
+                            DropdownMenuItem(value: 'SHOPPING', child: Text('Shopping')),
+                            DropdownMenuItem(value: 'BILLS', child: Text('Bills')),
+                            DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedCategory = value!;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _exchangeRateController,
+                          decoration: const InputDecoration(
+                            labelText: 'Exchange Rate',
+                            border: OutlineInputBorder(),
+                            helperText: '1.0 = same currency',
+                          ),
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter exchange rate';
+                            }
+                            final rate = double.tryParse(value);
+                            if (rate == null || rate <= 0) {
+                              return 'Please enter a valid positive number';
+                            }
+                            return null;
                           },
                         ),
                       ),
@@ -221,24 +295,78 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-    void _saveExpense(GroupProvider groupProvider) {
+    void _saveExpense(GroupProvider groupProvider) async {
     if (_formKey.currentState!.validate() && _selectedMembers.isNotEmpty) {
       final currentGroup = groupProvider.currentGroup;
       if (currentGroup == null) return;
       
-      final expense = Expense(
-         id: DateTime.now().millisecondsSinceEpoch.toString(),
-         name: _nameController.text,
-         amount: double.parse(_amountController.text),
-         currency: _selectedCurrency,
-         paidBy: _selectedPayer,
-         splitBetween: _selectedMembers,
-         date: _selectedDate,
-         groupId: currentGroup.id,
-       );
+      // Show loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Creating expense...'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+      
+      try {
+        // Create expense via API
+        final apiResponse = await ApiService.createExpense(
+          groupId: currentGroup.id,
+          name: _nameController.text,
+          amount: double.parse(_amountController.text),
+          currency: _selectedCurrency,
+          paidByPersonId: _selectedPayer,
+          splitBetweenPersonIds: _selectedMembers,
+          category: _selectedCategory,
+          exchangeRate: double.parse(_exchangeRateController.text),
+          date: _selectedDate,
+        );
+        
+        // Create local expense object from API response
+        final expense = Expense(
+          id: apiResponse['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+          name: apiResponse['name'] ?? _nameController.text,
+          amount: (apiResponse['amount'] as num?)?.toDouble() ?? double.parse(_amountController.text),
+          currency: apiResponse['currency'] ?? _selectedCurrency,
+          paidBy: _selectedPayer,
+          splitBetween: _selectedMembers,
+          date: _selectedDate,
+          groupId: currentGroup.id,
+          category: _selectedCategory,
+          exchangeRate: double.parse(_exchangeRateController.text),
+          createdAt: apiResponse['createdAt'] != null ? DateTime.parse(apiResponse['createdAt']) : null,
+          updatedAt: apiResponse['updatedAt'] != null ? DateTime.parse(apiResponse['updatedAt']) : null,
+          version: apiResponse['version'],
+        );
 
-      groupProvider.addExpense(expense);
-      Navigator.pop(context);
+        // Add to local storage and provider
+        groupProvider.addExpense(expense);
+        
+        // Show success message
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Expense created successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        
+        Navigator.pop(context);
+        
+      } catch (e) {
+        print('Error creating expense: $e');
+        
+        // Show error message
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to create expense: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -248,6 +376,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   void dispose() {
     _nameController.dispose();
     _amountController.dispose();
+    _exchangeRateController.dispose();
     super.dispose();
   }
 } 
