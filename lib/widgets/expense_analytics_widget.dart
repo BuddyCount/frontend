@@ -413,6 +413,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     if (_selectedMember != null) {
       expenses = expenses.where((expense) => 
         expense.paidBy == _selectedMember!.id ||
+        (expense.customPaidBy != null && expense.customPaidBy!.containsKey(_selectedMember!.id)) ||
         expense.splitBetween.contains(_selectedMember!.id)
       ).toList();
     }

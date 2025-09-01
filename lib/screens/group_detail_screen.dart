@@ -82,9 +82,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 const SizedBox(height: 24),
                 _buildBalancesSection(currentGroup),
                 const SizedBox(height: 24),
-                _buildExpenseAnalyticsSection(currentGroup),
-                const SizedBox(height: 24),
                 _buildExpensesSection(context, currentGroup, groupProvider),
+                const SizedBox(height: 24),
+                _buildExpenseAnalyticsSection(currentGroup),
               ],
             ),
           );
@@ -170,6 +170,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               final person = group.members.firstWhere((p) => p.id == entry.key);
               final balance = entry.value;
               final isPositive = balance > 0;
+              final isZero = balance == 0;
               
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -184,16 +185,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: isPositive ? Colors.green.shade100 : Colors.red.shade100,
+                        color: isZero 
+                          ? Colors.grey.shade100 
+                          : (isPositive ? Colors.green.shade100 : Colors.red.shade100),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: isPositive ? Colors.green.shade300 : Colors.red.shade300,
+                          color: isZero 
+                            ? Colors.grey.shade300 
+                            : (isPositive ? Colors.green.shade300 : Colors.red.shade300),
                         ),
                       ),
                       child: Text(
-                        '${isPositive ? '+' : ''}\$${balance.toStringAsFixed(2)}',
+                        isZero 
+                          ? '\$${balance.toStringAsFixed(2)}'
+                          : '\$${isPositive ? '+' : '-'}${balance.abs().toStringAsFixed(2)}',
                         style: TextStyle(
-                          color: isPositive ? Colors.green.shade700 : Colors.red.shade700,
+                          color: isZero 
+                            ? Colors.grey.shade700 
+                            : (isPositive ? Colors.green.shade700 : Colors.red.shade700),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -296,7 +305,18 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
   Widget _buildExpenseTile(BuildContext context, Expense expense, Group group, GroupProvider groupProvider) {
     final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
-    final splitAmount = expense.amount / expense.splitBetween.length;
+    
+    // Calculate split amount based on custom shares or equal splitting
+    double splitAmount;
+    if (expense.customShares != null && expense.customShares!.isNotEmpty) {
+      // Use custom shares for proportional splitting
+      final totalShares = expense.customShares!.values.reduce((a, b) => a + b);
+      // For display purposes, show the average share amount
+      splitAmount = expense.amount / totalShares;
+    } else {
+      // Equal splitting
+      splitAmount = expense.amount / expense.splitBetween.length;
+    }
     
     return Dismissible(
       key: Key(expense.id),
@@ -374,18 +394,34 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Paid by ${payer.name} • ${DateFormat('MMM dd, yyyy').format(expense.date)}',
+              expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty
+                ? 'Paid by multiple people • ${DateFormat('MMM dd, yyyy').format(expense.date)}'
+                : 'Paid by ${payer.name} • ${DateFormat('MMM dd, yyyy').format(expense.date)}',
               style: TextStyle(fontSize: 14),
             ),
             Text(
               'Split between ${expense.splitBetween.length} people',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
+            // Show multiple payers details if applicable
+            if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                expense.customPaidBy!.entries
+                    .where((entry) => entry.value > 0)
+                    .map((entry) {
+                  final person = group.members.firstWhere((p) => p.id == entry.key);
+                  return '${person.name}: \$${entry.value.toStringAsFixed(2)}';
+                }).join(', '),
+                style: TextStyle(fontSize: 11, color: Colors.blue.shade600),
+              ),
+            ],
           ],
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               '\$${expense.amount.toStringAsFixed(2)}',
@@ -395,12 +431,26 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               ),
             ),
             Text(
-              '\$${splitAmount.toStringAsFixed(2)} each',
+              expense.customShares != null && expense.customShares!.isNotEmpty
+                ? 'Shares: ${expense.customShares!.values.map((s) => s.toStringAsFixed(1)).join(', ')}'
+                : '\$${splitAmount.toStringAsFixed(2)} each',
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey.shade600,
               ),
             ),
+            // Show payment info for multiple payers
+            if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) ...[
+              const SizedBox(height: 1),
+              Text(
+                'Multi-pay',
+                style: TextStyle(
+                  fontSize: 9,
+                  color: Colors.blue.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -418,14 +468,37 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     // Calculate balances based on expenses
     for (final expense in group.expenses) {
       final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
-      final splitAmount = expense.amount / expense.splitBetween.length;
       
-      // Payer gets the full amount
-      balances[payer.id] = (balances[payer.id] ?? 0.0) + expense.amount;
+      // Handle multiple payers or single payer
+      if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) {
+        // Multiple payers with custom amounts
+        for (final entry in expense.customPaidBy!.entries) {
+          final payerId = entry.key;
+          final paidAmount = entry.value;
+          balances[payerId] = (balances[payerId] ?? 0.0) + paidAmount;
+        }
+      } else {
+        // Single payer gets the full amount
+        balances[payer.id] = (balances[payer.id] ?? 0.0) + expense.amount;
+      }
       
-      // Each person in split pays their share
-      for (final personId in expense.splitBetween) {
-        balances[personId] = (balances[personId] ?? 0.0) - splitAmount;
+      // Calculate how much each person owes based on custom shares or equal splitting
+      if (expense.customShares != null && expense.customShares!.isNotEmpty) {
+        // Use custom shares for proportional splitting
+        final totalShares = expense.customShares!.values.reduce((a, b) => a + b);
+        
+        for (final personId in expense.splitBetween) {
+          final personShares = expense.customShares![personId] ?? 1.0;
+          final personAmount = (personShares / totalShares) * expense.amount;
+          balances[personId] = (balances[personId] ?? 0.0) - personAmount;
+        }
+      } else {
+        // Equal splitting (original behavior)
+        final splitAmount = expense.amount / expense.splitBetween.length;
+        
+        for (final personId in expense.splitBetween) {
+          balances[personId] = (balances[personId] ?? 0.0) - splitAmount;
+        }
       }
     }
     

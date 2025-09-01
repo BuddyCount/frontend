@@ -21,6 +21,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   String _selectedPayer = '';
   DateTime _selectedDate = DateTime.now();
   final List<String> _selectedMembers = [];
+  
+  // Custom split mode
+  bool _isCustomSplitMode = false;
+  Map<String, double> _customShares = {}; // memberId -> share amount
+  
+  // Custom paid by mode
+  bool _isCustomPaidByMode = false;
+  Map<String, double> _customPaidBy = {}; // memberId -> amount paid
   String _selectedCategory = 'FOOD';
   final TextEditingController _exchangeRateController = TextEditingController(text: '1.0');
 
@@ -203,30 +211,181 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: _selectedPayer.isEmpty ? null : _selectedPayer,
-                    decoration: const InputDecoration(
-                      labelText: 'Paid by',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: currentGroup.members.map((person) {
-                      return DropdownMenuItem(
-                        value: person.id,
-                        child: Text(person.name),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedPayer = value!;
-                      });
-                    },
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please select who paid';
-                      }
-                      return null;
-                    },
+                  
+                  // Paid by section
+                  Text(
+                    'Paid by:',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
+                  const SizedBox(height: 8),
+                  
+                  // Paid by mode toggle
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Payment Mode:',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      SegmentedButton<bool>(
+                        segments: const [
+                          ButtonSegment<bool>(
+                            value: false,
+                            label: Text('Single'),
+                            icon: Icon(Icons.person),
+                          ),
+                          ButtonSegment<bool>(
+                            value: true,
+                            label: Text('Multiple'),
+                            icon: Icon(Icons.group),
+                          ),
+                        ],
+                        selected: {_isCustomPaidByMode},
+                        onSelectionChanged: (Set<bool> newSelection) {
+                          setState(() {
+                            _isCustomPaidByMode = newSelection.first;
+                            if (_isCustomPaidByMode) {
+                              // Initialize custom paid by amounts
+                              final totalAmount = double.tryParse(_amountController.text) ?? 0.0;
+                              final memberCount = currentGroup.members.length;
+                              final equalAmount = totalAmount / memberCount;
+                              for (final member in currentGroup.members) {
+                                _customPaidBy[member.id] = equalAmount;
+                              }
+                            } else {
+                              // Clear custom paid by when switching to single mode
+                              _customPaidBy.clear();
+                            }
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  
+                  // Single payer dropdown (only visible in single mode)
+                  if (!_isCustomPaidByMode) ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedPayer.isEmpty ? null : _selectedPayer,
+                      decoration: const InputDecoration(
+                        labelText: 'Who paid',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: currentGroup.members.map((person) {
+                        return DropdownMenuItem(
+                          value: person.id,
+                          child: Text(person.name),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedPayer = value!;
+                        });
+                      },
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please select who paid';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                  
+                  // Multiple payers input (only visible in multiple mode)
+                  if (_isCustomPaidByMode) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Amount paid by each person:',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...currentGroup.members.map((person) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: Text(person.name),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: TextFormField(
+                                initialValue: _customPaidBy[person.id]?.toString() ?? '0.0',
+                                decoration: const InputDecoration(
+                                  labelText: 'Amount',
+                                  border: OutlineInputBorder(),
+                                  hintText: '0.0',
+                                ),
+                                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Enter amount';
+                                  }
+                                  final amount = double.tryParse(value);
+                                  if (amount == null || amount < 0) {
+                                    return 'Valid positive number';
+                                  }
+                                  return null;
+                                },
+                                onChanged: (value) {
+                                  final amount = double.tryParse(value);
+                                  if (amount != null && amount >= 0) {
+                                    setState(() {
+                                      _customPaidBy[person.id] = amount;
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 8),
+                    Consumer<GroupProvider>(
+                      builder: (context, groupProvider, child) {
+                        final totalPaid = _customPaidBy.values.fold(0.0, (sum, amount) => sum + amount);
+                        final totalExpense = double.tryParse(_amountController.text) ?? 0.0;
+                        final difference = totalPaid - totalExpense;
+                        
+                        return Container(
+                          padding: const EdgeInsets.all(8.0),
+                          decoration: BoxDecoration(
+                            color: difference.abs() < 0.01 ? Colors.green.shade50 : Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: difference.abs() < 0.01 ? Colors.green.shade200 : Colors.orange.shade200,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                difference.abs() < 0.01 ? Icons.check_circle : Icons.warning,
+                                color: difference.abs() < 0.01 ? Colors.green : Colors.orange,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Total paid: \$${totalPaid.toStringAsFixed(2)} | '
+                                  'Expense: \$${totalExpense.toStringAsFixed(2)} | '
+                                  'Difference: \$${difference.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: difference.abs() < 0.01 ? Colors.green.shade700 : Colors.orange.shade700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   Text(
                     'Split between:',
@@ -241,13 +400,125 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         setState(() {
                           if (value == true) {
                             _selectedMembers.add(person.id);
+                            // Initialize custom share to 1.0 when adding member
+                            if (_isCustomSplitMode) {
+                              _customShares[person.id] = 1.0;
+                            }
                           } else {
                             _selectedMembers.remove(person.id);
+                            // Remove custom share when removing member
+                            _customShares.remove(person.id);
                           }
                         });
                       },
                     );
                   }),
+                  const SizedBox(height: 16),
+                  
+                  // Custom split mode toggle
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Split Mode:',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      SegmentedButton<bool>(
+                        segments: const [
+                          ButtonSegment<bool>(
+                            value: false,
+                            label: Text('Equal'),
+                            icon: Icon(Icons.equalizer),
+                          ),
+                          ButtonSegment<bool>(
+                            value: true,
+                            label: Text('Custom'),
+                            icon: Icon(Icons.tune),
+                          ),
+                        ],
+                        selected: {_isCustomSplitMode},
+                        onSelectionChanged: (Set<bool> newSelection) {
+                          setState(() {
+                            _isCustomSplitMode = newSelection.first;
+                            if (_isCustomSplitMode) {
+                              // Initialize custom shares for selected members
+                              for (final memberId in _selectedMembers) {
+                                _customShares[memberId] = 1.0;
+                              }
+                            } else {
+                              // Clear custom shares when switching to equal mode
+                              _customShares.clear();
+                            }
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  
+                  // Custom shares input (only visible in custom mode)
+                  if (_isCustomSplitMode) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Custom Shares:',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Enter the share amount for each member (e.g., 2.0, 0.5)',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...currentGroup.members
+                        .where((person) => _selectedMembers.contains(person.id))
+                        .map((person) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: Text(person.name),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: TextFormField(
+                                initialValue: _customShares[person.id]?.toString() ?? '1.0',
+                                decoration: const InputDecoration(
+                                  labelText: 'Shares',
+                                  border: OutlineInputBorder(),
+                                  hintText: '1.0',
+                                ),
+                                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Enter shares';
+                                  }
+                                  final shares = double.tryParse(value);
+                                  if (shares == null || shares <= 0) {
+                                    return 'Valid positive number';
+                                  }
+                                  return null;
+                                },
+                                onChanged: (value) {
+                                  final shares = double.tryParse(value);
+                                  if (shares != null && shares > 0) {
+                                    setState(() {
+                                      _customShares[person.id] = shares;
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                  
                   const SizedBox(height: 16),
                   ListTile(
                     title: const Text('Date'),
@@ -309,7 +580,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       );
       
       try {
-        // Create expense via API
+        // Try to create expense via API first (online-first approach)
         final apiResponse = await ApiService.createExpense(
           groupId: currentGroup.id,
           name: _nameController.text,
@@ -320,6 +591,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           category: _selectedCategory,
           exchangeRate: double.parse(_exchangeRateController.text),
           date: _selectedDate,
+          customShares: _isCustomSplitMode ? _customShares : null,
+          customPaidBy: _isCustomPaidByMode ? _customPaidBy : null,
         );
         
         // Create local expense object from API response
@@ -337,6 +610,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           createdAt: apiResponse['createdAt'] != null ? DateTime.parse(apiResponse['createdAt']) : null,
           updatedAt: apiResponse['updatedAt'] != null ? DateTime.parse(apiResponse['updatedAt']) : null,
           version: apiResponse['version'],
+          customShares: _isCustomSplitMode ? _customShares : null,
+          customPaidBy: _isCustomPaidByMode ? _customPaidBy : null,
         );
 
         // Add to local storage and provider
@@ -355,16 +630,57 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         Navigator.pop(context);
         
       } catch (e) {
-        print('Error creating expense: $e');
+        print('Error creating expense via API: $e');
         
-        // Show error message
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to create expense: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
+        // Fallback to offline creation
+        try {
+          // Create expense locally with generated ID
+          final expense = Expense(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            name: _nameController.text,
+            amount: double.parse(_amountController.text),
+            currency: _selectedCurrency,
+            paidBy: _selectedPayer,
+            splitBetween: _selectedMembers,
+            date: _selectedDate,
+            groupId: currentGroup.id,
+            category: _selectedCategory,
+            exchangeRate: double.parse(_exchangeRateController.text),
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+                      version: 1,
+          customShares: _isCustomSplitMode ? _customShares : null,
+          customPaidBy: _isCustomPaidByMode ? _customPaidBy : null,
           );
+
+          // Add to local storage and provider
+          groupProvider.addExpense(expense);
+          
+          // Show offline success message
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Expense created offline. Will sync when online.'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          
+          Navigator.pop(context);
+          
+        } catch (offlineError) {
+          print('Error creating expense offline: $offlineError');
+          
+          // Show error message
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to create expense: ${offlineError.toString()}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       }
     }
