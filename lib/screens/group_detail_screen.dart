@@ -170,6 +170,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               final person = group.members.firstWhere((p) => p.id == entry.key);
               final balance = entry.value;
               final isPositive = balance > 0;
+              final isZero = balance == 0;
               
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -184,16 +185,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: isPositive ? Colors.green.shade100 : Colors.red.shade100,
+                        color: isZero 
+                          ? Colors.grey.shade100 
+                          : (isPositive ? Colors.green.shade100 : Colors.red.shade100),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: isPositive ? Colors.green.shade300 : Colors.red.shade300,
+                          color: isZero 
+                            ? Colors.grey.shade300 
+                            : (isPositive ? Colors.green.shade300 : Colors.red.shade300),
                         ),
                       ),
                       child: Text(
-                        '${isPositive ? '+' : ''}\$${balance.toStringAsFixed(2)}',
+                        isZero 
+                          ? '\$${balance.toStringAsFixed(2)}'
+                          : '${isPositive ? '+' : ''}\$${balance.toStringAsFixed(2)}',
                         style: TextStyle(
-                          color: isPositive ? Colors.green.shade700 : Colors.red.shade700,
+                          color: isZero 
+                            ? Colors.grey.shade700 
+                            : (isPositive ? Colors.green.shade700 : Colors.red.shade700),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
