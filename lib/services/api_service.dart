@@ -266,6 +266,7 @@ class ApiService {
     required double exchangeRate,
     DateTime? date,
     Map<String, double>? customShares, // New parameter for custom shares
+    Map<String, double>? customPaidBy, // New parameter for custom paid by amounts
   }) async {
     try {
       print('💰 Creating expense via API: $name for group $groupId');
@@ -281,14 +282,21 @@ class ApiService {
         'amount': amount,
         'paidBy': {
           'repartitionType': 'AMOUNT',
-          'repartition': [
-            {
-              'userId': int.tryParse(paidByPersonId) ?? 1, // Convert to int if possible
-              'values': {
-                'amount': amount
-              }
-            }
-          ]
+          'repartition': customPaidBy != null && customPaidBy!.isNotEmpty
+            ? customPaidBy.entries.map((entry) => {
+                'userId': int.tryParse(entry.key) ?? 1,
+                'values': {
+                  'amount': entry.value
+                }
+              }).toList()
+            : [
+                {
+                  'userId': int.tryParse(paidByPersonId) ?? 1, // Convert to int if possible
+                  'values': {
+                    'amount': amount
+                  }
+                }
+              ]
         },
         'paidFor': {
           'repartitionType': customShares != null ? 'SHARES' : 'PORTIONS',

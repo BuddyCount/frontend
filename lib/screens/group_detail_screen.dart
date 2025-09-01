@@ -385,18 +385,34 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Paid by ${payer.name} • ${DateFormat('MMM dd, yyyy').format(expense.date)}',
+              expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty
+                ? 'Paid by multiple people • ${DateFormat('MMM dd, yyyy').format(expense.date)}'
+                : 'Paid by ${payer.name} • ${DateFormat('MMM dd, yyyy').format(expense.date)}',
               style: TextStyle(fontSize: 14),
             ),
             Text(
               'Split between ${expense.splitBetween.length} people',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
+            // Show multiple payers details if applicable
+            if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                expense.customPaidBy!.entries
+                    .where((entry) => entry.value > 0)
+                    .map((entry) {
+                  final person = group.members.firstWhere((p) => p.id == entry.key);
+                  return '${person.name}: \$${entry.value.toStringAsFixed(2)}';
+                }).join(', '),
+                style: TextStyle(fontSize: 11, color: Colors.blue.shade600),
+              ),
+            ],
           ],
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               '\$${expense.amount.toStringAsFixed(2)}',
@@ -414,6 +430,18 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 color: Colors.grey.shade600,
               ),
             ),
+            // Show payment info for multiple payers
+            if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) ...[
+              const SizedBox(height: 1),
+              Text(
+                'Multi-pay',
+                style: TextStyle(
+                  fontSize: 9,
+                  color: Colors.blue.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -432,8 +460,18 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     for (final expense in group.expenses) {
       final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
       
-      // Payer gets the full amount
-      balances[payer.id] = (balances[payer.id] ?? 0.0) + expense.amount;
+      // Handle multiple payers or single payer
+      if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) {
+        // Multiple payers with custom amounts
+        for (final entry in expense.customPaidBy!.entries) {
+          final payerId = entry.key;
+          final paidAmount = entry.value;
+          balances[payerId] = (balances[payerId] ?? 0.0) + paidAmount;
+        }
+      } else {
+        // Single payer gets the full amount
+        balances[payer.id] = (balances[payer.id] ?? 0.0) + expense.amount;
+      }
       
       // Calculate how much each person owes based on custom shares or equal splitting
       if (expense.customShares != null && expense.customShares!.isNotEmpty) {

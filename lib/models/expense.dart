@@ -45,6 +45,9 @@ class Expense extends HiveObject {
   
   @HiveField(13)
   final Map<String, double>? customShares; // Custom shares for proportional splitting
+  
+  @HiveField(14)
+  final Map<String, double>? customPaidBy; // Custom amounts paid by each person
 
   Expense({
     required this.id,
@@ -61,6 +64,7 @@ class Expense extends HiveObject {
     this.updatedAt,
     this.version,
     this.customShares,
+    this.customPaidBy,
   });
 
   Expense copyWith({
@@ -78,6 +82,7 @@ class Expense extends HiveObject {
     DateTime? updatedAt,
     int? version,
     Map<String, double>? customShares,
+    Map<String, double>? customPaidBy,
   }) {
     return Expense(
       id: id ?? this.id,
@@ -94,6 +99,7 @@ class Expense extends HiveObject {
       updatedAt: updatedAt ?? this.updatedAt,
       version: version ?? this.version,
       customShares: customShares ?? this.customShares,
+      customPaidBy: customPaidBy ?? this.customPaidBy,
     );
   }
 
@@ -113,6 +119,7 @@ class Expense extends HiveObject {
       'updatedAt': updatedAt?.toIso8601String(),
       'version': version,
       'customShares': customShares,
+      'customPaidBy': customPaidBy,
     };
   }
 
@@ -133,6 +140,9 @@ class Expense extends HiveObject {
       version: json['version'],
       customShares: json['customShares'] != null 
         ? Map<String, double>.from(json['customShares'])
+        : null,
+      customPaidBy: json['customPaidBy'] != null 
+        ? Map<String, double>.from(json['customPaidBy'])
         : null,
     );
   }

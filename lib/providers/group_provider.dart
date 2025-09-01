@@ -88,8 +88,18 @@ class GroupProvider with ChangeNotifier {
       
       final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
       
-      // Payer gets the full amount (in group currency)
-      balances[payer.id] = (balances[payer.id] ?? 0.0) + expenseAmountInGroupCurrency;
+      // Handle multiple payers or single payer
+      if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) {
+        // Multiple payers with custom amounts
+        for (final entry in expense.customPaidBy!.entries) {
+          final payerId = entry.key;
+          final paidAmount = entry.value;
+          balances[payerId] = (balances[payerId] ?? 0.0) + paidAmount;
+        }
+      } else {
+        // Single payer gets the full amount (in group currency)
+        balances[payer.id] = (balances[payer.id] ?? 0.0) + expenseAmountInGroupCurrency;
+      }
       
       // Calculate how much each person owes based on custom shares or equal splitting
       if (expense.customShares != null && expense.customShares!.isNotEmpty) {
