@@ -30,13 +30,14 @@ class ExpenseAdapter extends TypeAdapter<Expense> {
       createdAt: fields[10] as DateTime?,
       updatedAt: fields[11] as DateTime?,
       version: fields[12] as int?,
+      customShares: (fields[13] as Map?)?.cast<String, double>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, Expense obj) {
     writer
-      ..writeByte(13)
+      ..writeByte(14)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -62,7 +63,9 @@ class ExpenseAdapter extends TypeAdapter<Expense> {
       ..writeByte(11)
       ..write(obj.updatedAt)
       ..writeByte(12)
-      ..write(obj.version);
+      ..write(obj.version)
+      ..writeByte(13)
+      ..write(obj.customShares);
   }
 
   @override

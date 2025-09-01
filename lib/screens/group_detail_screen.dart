@@ -82,9 +82,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 const SizedBox(height: 24),
                 _buildBalancesSection(currentGroup),
                 const SizedBox(height: 24),
-                _buildExpenseAnalyticsSection(currentGroup),
-                const SizedBox(height: 24),
                 _buildExpensesSection(context, currentGroup, groupProvider),
+                const SizedBox(height: 24),
+                _buildExpenseAnalyticsSection(currentGroup),
               ],
             ),
           );
@@ -296,7 +296,18 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
   Widget _buildExpenseTile(BuildContext context, Expense expense, Group group, GroupProvider groupProvider) {
     final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
-    final splitAmount = expense.amount / expense.splitBetween.length;
+    
+    // Calculate split amount based on custom shares or equal splitting
+    double splitAmount;
+    if (expense.customShares != null && expense.customShares!.isNotEmpty) {
+      // Use custom shares for proportional splitting
+      final totalShares = expense.customShares!.values.reduce((a, b) => a + b);
+      // For display purposes, show the average share amount
+      splitAmount = expense.amount / totalShares;
+    } else {
+      // Equal splitting
+      splitAmount = expense.amount / expense.splitBetween.length;
+    }
     
     return Dismissible(
       key: Key(expense.id),
@@ -395,7 +406,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               ),
             ),
             Text(
-              '\$${splitAmount.toStringAsFixed(2)} each',
+              expense.customShares != null && expense.customShares!.isNotEmpty
+                ? 'Shares: ${expense.customShares!.values.map((s) => s.toStringAsFixed(1)).join(', ')}'
+                : '\$${splitAmount.toStringAsFixed(2)} each',
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey.shade600,
@@ -418,14 +431,27 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     // Calculate balances based on expenses
     for (final expense in group.expenses) {
       final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
-      final splitAmount = expense.amount / expense.splitBetween.length;
       
       // Payer gets the full amount
       balances[payer.id] = (balances[payer.id] ?? 0.0) + expense.amount;
       
-      // Each person in split pays their share
-      for (final personId in expense.splitBetween) {
-        balances[personId] = (balances[personId] ?? 0.0) - splitAmount;
+      // Calculate how much each person owes based on custom shares or equal splitting
+      if (expense.customShares != null && expense.customShares!.isNotEmpty) {
+        // Use custom shares for proportional splitting
+        final totalShares = expense.customShares!.values.reduce((a, b) => a + b);
+        
+        for (final personId in expense.splitBetween) {
+          final personShares = expense.customShares![personId] ?? 1.0;
+          final personAmount = (personShares / totalShares) * expense.amount;
+          balances[personId] = (balances[personId] ?? 0.0) - personAmount;
+        }
+      } else {
+        // Equal splitting (original behavior)
+        final splitAmount = expense.amount / expense.splitBetween.length;
+        
+        for (final personId in expense.splitBetween) {
+          balances[personId] = (balances[personId] ?? 0.0) - splitAmount;
+        }
       }
     }
     

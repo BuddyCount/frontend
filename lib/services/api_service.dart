@@ -265,6 +265,7 @@ class ApiService {
     required String category,
     required double exchangeRate,
     DateTime? date,
+    Map<String, double>? customShares, // New parameter for custom shares
   }) async {
     try {
       print('💰 Creating expense via API: $name for group $groupId');
@@ -275,7 +276,7 @@ class ApiService {
         'name': name,
         'category': category,
         'currency': currency,
-        'exchange_rate': exchangeRate ?? 1.0,
+        'exchange_rate': exchangeRate,
         'date': (date ?? DateTime.now()).toIso8601String().split('T')[0], // YYYY-MM-DD format
         'amount': amount,
         'paidBy': {
@@ -290,13 +291,20 @@ class ApiService {
           ]
         },
         'paidFor': {
-          'repartitionType': 'PORTIONS',
-          'repartition': splitBetweenPersonIds.map((personId) => {
-            'userId': int.tryParse(personId) ?? 1, // Convert to int if possible
-            'values': {
-              'share': 1
-            }
-          }).toList()
+          'repartitionType': customShares != null ? 'SHARES' : 'PORTIONS',
+          'repartition': customShares != null 
+            ? customShares.entries.map((entry) => {
+                'userId': int.tryParse(entry.key) ?? 1,
+                'values': {
+                  'share': entry.value
+                }
+              }).toList()
+            : splitBetweenPersonIds.map((personId) => {
+                'userId': int.tryParse(personId) ?? 1, // Convert to int if possible
+                'values': {
+                  'share': 1
+                }
+              }).toList()
         }
       };
       

@@ -56,7 +56,7 @@ class GroupProvider with ChangeNotifier {
     
     try {
       final group = _groups.firstWhere((g) => g.id == groupId);
-      final balances = _calculateBalances(group);
+      final balances = calculateBalances(group);
       return balances[userMember.id];
     } catch (e) {
       return null;
@@ -64,7 +64,7 @@ class GroupProvider with ChangeNotifier {
   }
   
   // Calculate balances for a group (moved from GroupDetailScreen)
-  Map<String, double> _calculateBalances(Group group) {
+  Map<String, double> calculateBalances(Group group) {
     final balances = <String, double>{};
     
     // Initialize all balances to 0
@@ -87,14 +87,27 @@ class GroupProvider with ChangeNotifier {
       }
       
       final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
-      final splitAmount = expenseAmountInGroupCurrency / expense.splitBetween.length;
       
       // Payer gets the full amount (in group currency)
       balances[payer.id] = (balances[payer.id] ?? 0.0) + expenseAmountInGroupCurrency;
       
-      // Each person in split pays their share (in group currency)
-      for (final personId in expense.splitBetween) {
-        balances[personId] = (balances[personId] ?? 0.0) - splitAmount;
+      // Calculate how much each person owes based on custom shares or equal splitting
+      if (expense.customShares != null && expense.customShares!.isNotEmpty) {
+        // Use custom shares for proportional splitting
+        final totalShares = expense.customShares!.values.reduce((a, b) => a + b);
+        
+        for (final personId in expense.splitBetween) {
+          final personShares = expense.customShares![personId] ?? 1.0;
+          final personAmount = (personShares / totalShares) * expenseAmountInGroupCurrency;
+          balances[personId] = (balances[personId] ?? 0.0) - personAmount;
+        }
+      } else {
+        // Equal splitting (original behavior)
+        final splitAmount = expenseAmountInGroupCurrency / expense.splitBetween.length;
+        
+        for (final personId in expense.splitBetween) {
+          balances[personId] = (balances[personId] ?? 0.0) - splitAmount;
+        }
       }
     }
     
