@@ -109,9 +109,9 @@ class ApiService {
         
         print('✅ Successfully joined group, got ID: $actualGroupId');
         
-        // Step 2: Get group details via /groups/{id}
+        // Step 2: Get group details via /group/{id}
         final groupResponse = await http.get(
-          Uri.parse('$baseUrl/groups/$actualGroupId'),
+          Uri.parse('$baseUrl/group/$actualGroupId'),
           headers: {
             'Accept': 'application/json',
           },
@@ -251,6 +251,86 @@ class ApiService {
     } catch (e) {
       print('💥 Exception in deleteGroup: $e');
       throw Exception('Error deleting group: $e');
+    }
+  }
+  
+  // Create an expense
+  static Future<Map<String, dynamic>> createExpense({
+    required String groupId,
+    required String name,
+    required double amount,
+    required String currency,
+    required String paidByPersonId,
+    required List<String> splitBetweenPersonIds,
+    required String category,
+    required double exchangeRate,
+    DateTime? date,
+  }) async {
+    try {
+      print('💰 Creating expense via API: $name for group $groupId');
+      
+      // Convert our simple model to the complex API format
+      final requestBody = {
+        'groupId': groupId,
+        'name': name,
+        'category': category,
+        'currency': currency,
+        'exchange_rate': exchangeRate ?? 1.0,
+        'date': (date ?? DateTime.now()).toIso8601String().split('T')[0], // YYYY-MM-DD format
+        'amount': amount,
+        'paidBy': {
+          'repartitionType': 'AMOUNT',
+          'repartition': [
+            {
+              'userId': int.tryParse(paidByPersonId) ?? 1, // Convert to int if possible
+              'values': {
+                'amount': amount
+              }
+            }
+          ]
+        },
+        'paidFor': {
+          'repartitionType': 'PORTIONS',
+          'repartition': splitBetweenPersonIds.map((personId) => {
+            'userId': int.tryParse(personId) ?? 1, // Convert to int if possible
+            'values': {
+              'share': 1
+            }
+          }).toList()
+        }
+      };
+      
+      print('📤 Creating expense at: $baseUrl/group/$groupId/expense');
+      print('📤 Request body: ${jsonEncode(requestBody)}');
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/group/$groupId/expense'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(requestBody),
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Request timed out after 10 seconds');
+        },
+      );
+      
+      print('📡 Create Expense Response: Status ${response.statusCode}');
+      print('📄 Response body: ${response.body}');
+      
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        print('✅ Expense created successfully: ${responseData['id'] ?? 'No ID returned'}');
+        return responseData;
+      } else {
+        print('❌ API Error: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to create expense: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('💥 Exception in createExpense: $e');
+      throw Exception('Error creating expense: $e');
     }
   }
 }
