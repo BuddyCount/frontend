@@ -85,6 +85,7 @@ The project automatically generates status badges for build and test status:
 4. **Run the app**
    ```bash
    # iOS Simulator
+   flutter emulators --launch apple_ios_simulator
    flutter run -d "iPhone 16 Plus"
    
    # Android Emulator
