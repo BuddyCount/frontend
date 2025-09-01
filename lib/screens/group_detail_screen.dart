@@ -198,7 +198,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                       child: Text(
                         isZero 
                           ? '\$${balance.toStringAsFixed(2)}'
-                          : '${isPositive ? '+' : ''}\$${balance.toStringAsFixed(2)}',
+                          : '\$${isPositive ? '+' : '-'}${balance.abs().toStringAsFixed(2)}',
                         style: TextStyle(
                           color: isZero 
                             ? Colors.grey.shade700 
