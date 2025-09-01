@@ -14,7 +14,7 @@ class ApiService {
       ).timeout(const Duration(seconds: 5));
       
       print('🔍 Connectivity test response: ${response.statusCode}');
-      return response.statusCode < 500; // Any response means we can reach the server
+      return response.statusCode < 500; // Any response means we can reach the server.
     } catch (e) {
       print('🔍 Connectivity test failed: $e');
       return false;

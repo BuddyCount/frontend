@@ -393,7 +393,7 @@ class SyncService {
     }
   }
 
-  // Check if online
+  // Check if online.
   bool get isOnline => _isOnline;
 
   // Manual sync trigger

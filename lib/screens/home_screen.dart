@@ -104,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.info_outline),
             onPressed: () {
-              // Show app info instead of navigating to landing page
+              // Show app info instead of navigating to landing page.
               showAboutDialog(
                 context: context,
                 applicationName: 'BuddyCount',
