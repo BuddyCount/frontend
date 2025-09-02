@@ -325,13 +325,13 @@ class SyncService {
             print('⚠️ Error fetching expenses: $e');
             // Continue without expenses - group will be created with empty expenses list
           }
-          
           final group = Group(
             id: actualGroupId,
             name: groupData['name'] ?? 'Unknown Group',
             description: groupData['description'] ?? '',
             currency: groupData['currency'] ?? 'USD',
             members: members,
+
             expenses: expenses,
             linkToken: groupData['linkToken'],
             version: groupData['version'] ?? 1,
