@@ -32,13 +32,14 @@ class ExpenseAdapter extends TypeAdapter<Expense> {
       version: fields[12] as int?,
       customShares: (fields[13] as Map?)?.cast<String, double>(),
       customPaidBy: (fields[14] as Map?)?.cast<String, double>(),
+      images: (fields[15] as List?)?.cast<String>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, Expense obj) {
     writer
-      ..writeByte(15)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -68,7 +69,9 @@ class ExpenseAdapter extends TypeAdapter<Expense> {
       ..writeByte(13)
       ..write(obj.customShares)
       ..writeByte(14)
-      ..write(obj.customPaidBy);
+      ..write(obj.customPaidBy)
+      ..writeByte(15)
+      ..write(obj.images);
   }
 
   @override
