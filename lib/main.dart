@@ -4,6 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'providers/group_provider.dart';
 import 'screens/groups_overview_screen.dart';
 import 'services/local_storage_service.dart';
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,6 +14,9 @@ void main() async {
   
   // Initialize local storage
   await LocalStorageService.initialize();
+  
+  // Initialize authentication service
+  await AuthService.initialize();
   
   runApp(const BuddyCountApp());
 }
