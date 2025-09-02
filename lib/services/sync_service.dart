@@ -87,7 +87,9 @@ class SyncService {
       final backendReachable = await ApiService.testConnectivity();
       print('🔍 Backend connectivity test: $backendReachable');
       
-      if (backendReachable) {
+      // If connectivity test fails but we have internet, try API calls anyway
+      // (connectivity test might fail due to DNS issues but API calls might work)
+      if (backendReachable || isActuallyOnline) {
         // Try to create group via API first
         try {
           print('🌐 Attempting to create group via API: $name');
@@ -194,7 +196,9 @@ class SyncService {
       final backendReachable = await ApiService.testConnectivity();
       print('🔍 Backend connectivity test: $backendReachable');
       
-      if (backendReachable) {
+      // If connectivity test fails but we have internet, try API calls anyway
+      // (connectivity test might fail due to DNS issues but API calls might work)
+      if (backendReachable || isActuallyOnline) {
         // Try to delete group via API first
         try {
           print('🌐 Attempting to delete group via API: $groupId');
@@ -256,35 +260,43 @@ class SyncService {
   
   // Join group (online-first, offline-fallback)
   Future<void> joinGroupOffline(String inviteLink, BuildContext context) async {
-    if (_isOnline) {
-      // Try to join group via API first
-      try {
-        print('🌐 Attempting to join group via API: $inviteLink');
-        final apiResponse = await ApiService.joinGroup(inviteLink);
+    // Always try to join group via API first, regardless of _isOnline status
+    // (similar to createGroupOffline logic)
+    try {
+      print('🌐 Attempting to join group via API: $inviteLink');
+      final apiResponse = await ApiService.joinGroup(inviteLink);
         
         // API succeeded - extract group details
-        final groupDetails = apiResponse['groupDetails'];
         final actualGroupId = apiResponse['actualGroupId'];
         
-        if (groupDetails != null && actualGroupId != null) {
+        if (actualGroupId != null) {
+          // Handle both direct response and nested response structures
+          final groupData = apiResponse['groupDetails'] ?? apiResponse;
+          
           // Convert API response to Group object
-          final members = (groupDetails['members'] as List<dynamic>? ?? [])
+          // Backend returns 'users' field, not 'members'
+          final members = (groupData['users'] as List<dynamic>? ?? [])
               .map((m) => Person(
                     id: m['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
                     name: m['name'] ?? 'Unknown',
                   ))
               .toList();
           
+          print('🔍 Parsed ${members.length} members from join response');
+          for (final member in members) {
+            print('  - Member: ${member.name} (ID: ${member.id})');
+          }
+          
           final group = Group(
             id: actualGroupId,
-            name: groupDetails['name'] ?? 'Unknown Group',
-            description: groupDetails['description'] ?? '',
-            currency: groupDetails['currency'] ?? 'USD',
+            name: groupData['name'] ?? 'Unknown Group',
+            description: groupData['description'] ?? '',
+            currency: groupData['currency'] ?? 'USD',
             members: members,
-            linkToken: groupDetails['linkToken'],
-            version: groupDetails['version'] ?? 1,
-            createdAt: DateTime.parse(groupDetails['createdAt']),
-            updatedAt: DateTime.parse(groupDetails['updatedAt']),
+            linkToken: groupData['linkToken'],
+            version: groupData['version'] ?? 1,
+            createdAt: DateTime.parse(groupData['createdAt']),
+            updatedAt: DateTime.parse(groupData['updatedAt']),
           );
           
           // Save to local storage
@@ -300,24 +312,19 @@ class SyncService {
           return;
         }
         
-      } catch (e) {
-        print('⚠️ API join failed, falling back to offline mode: $e');
-        // Fall through to offline handling
+    } catch (e) {
+      print('⚠️ API join failed: $e');
+      
+      // Show error message to user
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Failed to join group: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
       }
-    }
-    
-    // Offline handling (when offline or API fails)
-    print('📱 Cannot join group while offline: $inviteLink');
-    
-    // Show offline message to user
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('📱 Cannot join groups while offline. Please try again when connected.'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 4),
-        ),
-      );
     }
   }
 

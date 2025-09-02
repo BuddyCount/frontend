@@ -1,22 +1,94 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'auth_service.dart';
 
 class ApiService {
   static const String baseUrl = 'https://api.buddycount.duckdns.org';
+  
+  /// Maps local string IDs to integer IDs for the backend
+  static int _mapStringIdToInt(String stringId, List<String> memberNames) {
+    print('🔍 Mapping string ID: "$stringId" to integer');
+    print('🔍 Available member names: $memberNames');
+    
+    // Check if stringId is already an integer
+    final intId = int.tryParse(stringId);
+    if (intId != null) {
+      print('🔍 String ID is already an integer: $intId');
+      return intId;
+    }
+    
+    // Otherwise, try to map by name
+    final index = memberNames.indexWhere((name) => 
+      name.toLowerCase().replaceAll(' ', '_') == stringId);
+    
+    final result = index >= 0 ? index + 1 : 1;
+    print('🔍 Mapped "$stringId" to integer: $result');
+    return result;
+  }
+  
+  /// Gets headers with authentication token
+  static Future<Map<String, String>> _getAuthHeaders() async {
+    final token = await AuthService.getToken();
+    final headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    
+    return headers;
+  }
   
   // Test connectivity to the backend
   static Future<bool> testConnectivity() async {
     try {
       print('🔍 Testing connectivity to: $baseUrl');
+      
+      // Try multiple endpoints to be more robust
+      final endpoints = [
+        '$baseUrl', // Root endpoint
+        '$baseUrl/health', // Health check endpoint
+        '$baseUrl/swagger', // Swagger endpoint
+      ];
+      
+      for (final endpoint in endpoints) {
+        try {
+          print('🔍 Trying endpoint: $endpoint');
+          final response = await http.get(
+            Uri.parse(endpoint),
+            headers: {'Accept': 'application/json'},
+          ).timeout(const Duration(seconds: 3));
+          
+          print('🔍 Connectivity test response: ${response.statusCode}');
+          if (response.statusCode < 500) {
+            return true; // Any successful response means we can reach the server
+          }
+        } catch (e) {
+          print('🔍 Endpoint $endpoint failed: $e');
+          continue; // Try next endpoint
+        }
+      }
+      
+      // If all endpoints failed, try a simple ping approach
+      print('🔍 All endpoints failed, trying simple connectivity test...');
       final response = await http.get(
         Uri.parse('$baseUrl'),
         headers: {'Accept': 'application/json'},
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(const Duration(seconds: 10));
       
-      print('🔍 Connectivity test response: ${response.statusCode}');
-      return response.statusCode < 500; // Any response means we can reach the server
+      print('🔍 Final connectivity test response: ${response.statusCode}');
+      return response.statusCode < 500;
+      
     } catch (e) {
       print('🔍 Connectivity test failed: $e');
+      // If it's a DNS issue but you can reach the backend, assume connectivity is OK
+      if (e.toString().contains('Failed host lookup') || 
+          e.toString().contains('nodename nor servname provided')) {
+        print('🔍 DNS lookup failed, but assuming connectivity is OK for API calls');
+        return true; // Assume connectivity is OK if it's just a DNS issue
+      }
       return false;
     }
   }
@@ -26,18 +98,16 @@ class ApiService {
     try {
       print('🚀 Creating group via API: $groupName with ${memberNames.length} members');
       
-      // Convert member names to the API format
-      final users = memberNames.map((name) => {
-        'id': name.toLowerCase().replaceAll(' ', '_'), // Generate simple ID from name
-        'name': name.trim(),
+      // Convert member names to the API format with integer IDs
+      final users = memberNames.asMap().entries.map((entry) => {
+        'id': entry.key + 1, // Generate integer ID starting from 1
+        'name': entry.value.trim(),
       }).toList();
       
+      final headers = await _getAuthHeaders();
       final response = await http.post(
         Uri.parse('$baseUrl/group'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+        headers: headers,
         body: jsonEncode({
           'name': groupName,
           'description': description,
@@ -77,16 +147,11 @@ class ApiService {
       final groupId = _extractGroupIdFromLink(inviteLink);
       print('📋 Extracted group ID: $groupId');
       
-      // Step 1: Send join request to /join/{id}
-      final joinResponse = await http.post(
-        Uri.parse('$baseUrl/join/$groupId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({
-          'inviteLink': inviteLink,
-        }),
+      // Step 1: Send join request to /group/join/{linkToken}
+      final headers = await _getAuthHeaders();
+      final joinResponse = await http.get(
+        Uri.parse('$baseUrl/group/join/$groupId'),
+        headers: headers,
       ).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
@@ -100,43 +165,49 @@ class ApiService {
       if (joinResponse.statusCode == 200 || joinResponse.statusCode == 201) {
         final joinData = jsonDecode(joinResponse.body);
         
-        // Extract the actual group ID or token from the response
-        final actualGroupId = joinData['groupId'] ?? joinData['id'] ?? joinData['token'];
-        
-        if (actualGroupId == null) {
-          throw Exception('No group ID or token returned from join request');
-        }
+        // For GET request, the response should contain the group data directly
+        // or we might need to extract the group ID and fetch details separately
+        final actualGroupId = joinData['id'] ?? joinData['groupId'] ?? groupId;
         
         print('✅ Successfully joined group, got ID: $actualGroupId');
         
-        // Step 2: Get group details via /group/{id}
-        final groupResponse = await http.get(
-          Uri.parse('$baseUrl/group/$actualGroupId'),
-          headers: {
-            'Accept': 'application/json',
-          },
-        ).timeout(
-          const Duration(seconds: 10),
-          onTimeout: () {
-            throw Exception('Group details request timed out after 10 seconds');
-          },
-        );
-        
-        print('📡 Group Details Response: Status ${groupResponse.statusCode}');
-        print('📄 Group Details body: ${groupResponse.body}');
-        
-        if (groupResponse.statusCode == 200) {
-          final groupData = jsonDecode(groupResponse.body);
-          print('✅ Successfully retrieved group details');
-          
-          // Return combined data: join response + group details
+        // If the response contains full group data, return it directly
+        if (joinData.containsKey('name') && joinData.containsKey('members')) {
+          print('✅ Join response contains full group data');
           return {
             ...joinData,
-            'groupDetails': groupData,
             'actualGroupId': actualGroupId,
           };
         } else {
-          throw Exception('Failed to get group details: ${groupResponse.statusCode} - ${groupResponse.body}');
+          // Otherwise, fetch group details separately
+          final groupResponse = await http.get(
+            Uri.parse('$baseUrl/group/$actualGroupId'),
+            headers: {
+              'Accept': 'application/json',
+            },
+          ).timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              throw Exception('Group details request timed out after 10 seconds');
+            },
+          );
+          
+          print('📡 Group Details Response: Status ${groupResponse.statusCode}');
+          print('📄 Group Details body: ${groupResponse.body}');
+          
+          if (groupResponse.statusCode == 200) {
+            final groupData = jsonDecode(groupResponse.body);
+            print('✅ Successfully retrieved group details');
+            
+            // Return combined data: join response + group details
+            return {
+              ...joinData,
+              'groupDetails': groupData,
+              'actualGroupId': actualGroupId,
+            };
+          } else {
+            throw Exception('Failed to get group details: ${groupResponse.statusCode} - ${groupResponse.body}');
+          }
         }
       } else {
         print('❌ Join API Error: ${joinResponse.statusCode} - ${joinResponse.body}');
@@ -194,11 +265,10 @@ class ApiService {
     try {
       print('📋 Fetching group details for ID: $groupId');
       
+      final headers = await _getAuthHeaders();
       final response = await http.get(
         Uri.parse('$baseUrl/groups/$groupId'),
-        headers: {
-          'Accept': 'application/json',
-        },
+        headers: headers,
       ).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
@@ -227,11 +297,10 @@ class ApiService {
     try {
       print('🗑️ Deleting group via API: $groupId');
       
+      final headers = await _getAuthHeaders();
       final response = await http.delete(
         Uri.parse('$baseUrl/group/$groupId'),
-        headers: {
-          'Accept': 'application/json',
-        },
+        headers: headers,
       ).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
@@ -264,6 +333,7 @@ class ApiService {
     required List<String> splitBetweenPersonIds,
     required String category,
     required double exchangeRate,
+    required List<String> memberNames, // Add member names for ID mapping
     DateTime? date,
     Map<String, double>? customShares, // New parameter for custom shares
     Map<String, double>? customPaidBy, // New parameter for custom paid by amounts
@@ -284,14 +354,14 @@ class ApiService {
           'repartitionType': 'AMOUNT',
           'repartition': customPaidBy != null && customPaidBy!.isNotEmpty
             ? customPaidBy.entries.map((entry) => {
-                'userId': int.tryParse(entry.key) ?? 1,
+                'userId': _mapStringIdToInt(entry.key, memberNames),
                 'values': {
                   'amount': entry.value
                 }
               }).toList()
             : [
                 {
-                  'userId': int.tryParse(paidByPersonId) ?? 1, // Convert to int if possible
+                  'userId': _mapStringIdToInt(paidByPersonId, memberNames),
                   'values': {
                     'amount': amount
                   }
@@ -299,16 +369,16 @@ class ApiService {
               ]
         },
         'paidFor': {
-          'repartitionType': customShares != null ? 'SHARES' : 'PORTIONS',
+          'repartitionType': 'PORTIONS', // Backend only accepts PORTIONS or AMOUNT, not SHARES
           'repartition': customShares != null 
             ? customShares.entries.map((entry) => {
-                'userId': int.tryParse(entry.key) ?? 1,
+                'userId': _mapStringIdToInt(entry.key, memberNames),
                 'values': {
                   'share': entry.value
                 }
               }).toList()
             : splitBetweenPersonIds.map((personId) => {
-                'userId': int.tryParse(personId) ?? 1, // Convert to int if possible
+                'userId': _mapStringIdToInt(personId, memberNames),
                 'values': {
                   'share': 1
                 }
@@ -319,12 +389,22 @@ class ApiService {
       print('📤 Creating expense at: $baseUrl/group/$groupId/expense');
       print('📤 Request body: ${jsonEncode(requestBody)}');
       
+      // Debug custom shares
+      if (customShares != null) {
+        print('🔍 Custom shares debug:');
+        print('🔍 Number of custom shares: ${customShares.length}');
+        customShares.forEach((key, value) {
+          print('  - Member ID: $key, Share: $value');
+        });
+        print('🔍 Total shares: ${customShares.values.fold(0.0, (sum, share) => sum + share)}');
+        print('🔍 Split between members: $splitBetweenPersonIds');
+        print('🔍 Member names: $memberNames');
+      }
+      
+      final headers = await _getAuthHeaders();
       final response = await http.post(
         Uri.parse('$baseUrl/group/$groupId/expense'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+        headers: headers,
         body: jsonEncode(requestBody),
       ).timeout(
         const Duration(seconds: 10),
