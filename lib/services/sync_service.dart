@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'local_storage_service.dart';
 import 'api_service.dart';
 import '../providers/group_provider.dart';
@@ -13,6 +15,8 @@ class SyncService {
   static final SyncService _instance = SyncService._internal();
   factory SyncService() => _instance;
   SyncService._internal();
+  
+  static const String baseUrl = 'https://api.buddycount.duckdns.org';
 
   StreamSubscription<ConnectivityResult>? _connectivitySubscription;
   bool _isOnline = false;
@@ -287,12 +291,48 @@ class SyncService {
             print('  - Member: ${member.name} (ID: ${member.id})');
           }
           
+          // Fetch expenses for the group
+          List<Expense> expenses = [];
+          try {
+            print('🔍 Fetching expenses for group: $actualGroupId');
+            final expensesResponse = await http.get(
+              Uri.parse('$baseUrl/group/$actualGroupId/expense'),
+              headers: {
+                'Accept': 'application/json',
+              },
+            ).timeout(
+              const Duration(seconds: 10),
+              onTimeout: () {
+                throw Exception('Expenses request timed out after 10 seconds');
+              },
+            );
+            
+            print('📡 Expenses Response: Status ${expensesResponse.statusCode}');
+            print('📄 Expenses Response body: ${expensesResponse.body}');
+            
+            if (expensesResponse.statusCode == 200) {
+              final expensesData = jsonDecode(expensesResponse.body);
+              if (expensesData is List) {
+                expenses = expensesData.map((expenseJson) => Expense.fromJson(expenseJson)).toList();
+                print('✅ Successfully fetched ${expenses.length} expenses');
+              } else {
+                print('⚠️ Unexpected expenses response format');
+              }
+            } else {
+              print('⚠️ Failed to fetch expenses: ${expensesResponse.statusCode} - ${expensesResponse.body}');
+            }
+          } catch (e) {
+            print('⚠️ Error fetching expenses: $e');
+            // Continue without expenses - group will be created with empty expenses list
+          }
           final group = Group(
             id: actualGroupId,
             name: groupData['name'] ?? 'Unknown Group',
             description: groupData['description'] ?? '',
             currency: groupData['currency'] ?? 'USD',
             members: members,
+
+            expenses: expenses,
             linkToken: groupData['linkToken'],
             version: groupData['version'] ?? 1,
             createdAt: DateTime.parse(groupData['createdAt']),
