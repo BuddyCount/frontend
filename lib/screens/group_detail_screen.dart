@@ -7,6 +7,7 @@ import '../models/expense.dart';
 import '../models/person.dart';
 import '../services/sync_service.dart';
 import 'add_expense_screen.dart';
+import 'expense_detail_screen.dart';
 import 'package:intl/intl.dart';
 import '../widgets/expense_analytics_widget.dart';
 
@@ -176,7 +177,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             ),
             const SizedBox(height: 16),
             ...balances.entries.map((entry) {
-              final person = group.members.firstWhere((p) => p.id == entry.key);
+              final person = group.members.firstWhere(
+                (p) => p.id == entry.key,
+                orElse: () => group.members.first, // Fallback to first member if not found
+              );
               final balance = entry.value;
               final isPositive = balance > 0;
               final isZero = balance == 0;
@@ -313,7 +317,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   }
 
   Widget _buildExpenseTile(BuildContext context, Expense expense, Group group, GroupProvider groupProvider) {
-    final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
+    final payer = group.members.firstWhere(
+      (p) => p.id == expense.paidBy || p.name == expense.paidBy,
+      orElse: () => group.members.first, // Fallback to first member if not found
+    );
     
     // Calculate split amount based on custom shares or equal splitting
     double splitAmount;
@@ -388,6 +395,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       },
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(vertical: 8.0),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ExpenseDetailScreen(expense: expense),
+            ),
+          );
+        },
         leading: CircleAvatar(
           backgroundColor: Colors.blue.shade100,
           child: Icon(
@@ -419,10 +434,27 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 expense.customPaidBy!.entries
                     .where((entry) => entry.value > 0)
                     .map((entry) {
-                  final person = group.members.firstWhere((p) => p.id == entry.key);
+                  final person = group.members.firstWhere(
+                    (p) => p.id == entry.key,
+                    orElse: () => group.members.first, // Fallback to first member if not found
+                  );
                   return '${person.name}: \$${entry.value.toStringAsFixed(2)}';
                 }).join(', '),
                 style: TextStyle(fontSize: 11, color: Colors.blue.shade600),
+              ),
+            ],
+            // Show images if available
+            if (expense.images != null && expense.images!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.photo, size: 16, color: Colors.grey.shade600),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${expense.images!.length} image${expense.images!.length > 1 ? 's' : ''}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                ],
               ),
             ],
           ],
@@ -476,7 +508,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     
     // Calculate balances based on expenses
     for (final expense in group.expenses) {
-      final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
+      final payer = group.members.firstWhere(
+        (p) => p.id == expense.paidBy || p.name == expense.paidBy,
+        orElse: () => group.members.first, // Fallback to first member if not found
+      );
       
       // Handle multiple payers or single payer
       if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) {
@@ -814,8 +849,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
     return Column(
       children: settlements.map((settlement) {
-        final fromPerson = group.members.firstWhere((p) => p.id == settlement.fromId);
-        final toPerson = group.members.firstWhere((p) => p.id == settlement.toId);
+        final fromPerson = group.members.firstWhere(
+          (p) => p.id == settlement.fromId,
+          orElse: () => group.members.first, // Fallback to first member if not found
+        );
+        final toPerson = group.members.firstWhere(
+          (p) => p.id == settlement.toId,
+          orElse: () => group.members.first, // Fallback to first member if not found
+        );
         
         return Container(
           margin: const EdgeInsets.symmetric(vertical: 4.0),

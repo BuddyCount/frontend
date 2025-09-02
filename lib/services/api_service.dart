@@ -337,9 +337,13 @@ class ApiService {
     DateTime? date,
     Map<String, double>? customShares, // New parameter for custom shares
     Map<String, double>? customPaidBy, // New parameter for custom paid by amounts
+    List<String>? images, // New parameter for image filenames
   }) async {
     try {
       print('💰 Creating expense via API: $name for group $groupId');
+      print('🔍 Images parameter received: $images');
+      print('🔍 Images is null: ${images == null}');
+      print('🔍 Images is empty: ${images?.isEmpty ?? true}');
       
       // Convert our simple model to the complex API format
       final requestBody = {
@@ -383,11 +387,14 @@ class ApiService {
                   'share': 1
                 }
               }).toList()
-        }
+        },
+        // Add images if provided
+        if (images != null && images.isNotEmpty) 'images': images,
       };
       
       print('📤 Creating expense at: $baseUrl/group/$groupId/expense');
       print('📤 Request body: ${jsonEncode(requestBody)}');
+      print('🔍 Images in request body: ${requestBody['images']}');
       
       // Debug custom shares
       if (customShares != null) {

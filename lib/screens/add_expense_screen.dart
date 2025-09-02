@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../providers/group_provider.dart';
 import '../models/expense.dart';
 import '../services/api_service.dart';
+import '../services/image_service.dart';
 
 import 'package:intl/intl.dart';
 
@@ -29,6 +32,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   // Custom paid by mode
   bool _isCustomPaidByMode = false;
   Map<String, double> _customPaidBy = {}; // memberId -> amount paid
+  
+  // Images
+  final List<File> _selectedImages = [];
+  final List<String> _uploadedImageFilenames = [];
   String _selectedCategory = 'FOOD';
   final TextEditingController _exchangeRateController = TextEditingController(text: '1.0');
 
@@ -180,6 +187,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                             
                             // Category & Exchange Rate Card
                             _buildCategoryExchangeCard(),
+                            const SizedBox(height: 20),
+                            
+                            // Images Card
+                            _buildImagesCard(),
                             const SizedBox(height: 20),
                             
                             // Date Card
@@ -804,7 +815,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             ],
             selected: {_isCustomSplitMode},
                         onSelectionChanged: (Set<bool> selection) {
-              setState(() {
+          setState(() {
                 _isCustomSplitMode = selection.first;
                 if (!_isCustomSplitMode) {
                   _customShares.clear();
@@ -894,21 +905,21 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         ),
                       ),
                       value: isSelected,
-                                onChanged: (bool? value) {
-                        setState(() {
-                          if (value == true) {
+          onChanged: (bool? value) {
+            setState(() {
+              if (value == true) {
                             _selectedMembers.add(person.id);
                             // Initialize custom share for new member if in custom split mode
                             if (_isCustomSplitMode && !_customShares.containsKey(person.id)) {
                               _customShares[person.id] = 1.0;
                             }
-                          } else {
+              } else {
                             _selectedMembers.remove(person.id);
                             // Remove custom share for deselected member
                             _customShares.remove(person.id);
-                          }
-                        });
-                      },
+              }
+            });
+          },
                       activeColor: Colors.pink.shade400,
                       checkColor: Colors.white,
                     ),
@@ -1242,6 +1253,32 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     if (currentGroup == null) return;
 
     try {
+      // Clear any previously uploaded filenames
+      _uploadedImageFilenames.clear();
+      
+      // Upload images first if any are selected
+      if (_selectedImages.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('📸 Uploading images...'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        
+        for (final imageFile in _selectedImages) {
+          final filename = await ImageService.uploadImage(imageFile);
+          if (filename != null) {
+            _uploadedImageFilenames.add(filename);
+          }
+        }
+        
+        print('📸 Uploaded ${_uploadedImageFilenames.length} images: $_uploadedImageFilenames');
+      }
+      
+      // Debug: Check if images are being passed to API
+      print('🔍 About to create expense with images: $_uploadedImageFilenames');
+      print('🔍 Images list is empty: ${_uploadedImageFilenames.isEmpty}');
+      
       // Try to create expense via API first
       final expenseData = await ApiService.createExpense(
         groupId: currentGroup.id,
@@ -1256,8 +1293,24 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         date: _selectedDate,
         customShares: _isCustomSplitMode ? _customShares : null,
         customPaidBy: _isCustomPaidByMode ? _customPaidBy : null,
+        images: _uploadedImageFilenames.isNotEmpty ? _uploadedImageFilenames : null,
       );
 
+      // Extract split information from paidFor field
+      List<String> splitBetween = [];
+      if (expenseData['paidFor'] != null && expenseData['paidFor']['repartition'] != null) {
+        final repartition = expenseData['paidFor']['repartition'] as List;
+        for (final item in repartition) {
+          final userId = item['userId'].toString();
+          // Find member name by ID
+          final member = currentGroup.members.firstWhere(
+            (m) => m.id == userId,
+            orElse: () => currentGroup.members.first,
+          );
+          splitBetween.add(member.name);
+        }
+      }
+      
       // Create expense locally from API response
       final expense = Expense(
         id: expenseData['id'].toString(),
@@ -1265,7 +1318,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         amount: expenseData['amount'].toDouble(),
         currency: expenseData['currency'],
         paidBy: expenseData['paidBy'].toString(),
-        splitBetween: List<String>.from(expenseData['splitBetween']),
+        splitBetween: splitBetween,
         date: DateTime.parse(expenseData['date']),
         groupId: currentGroup.id,
         category: expenseData['category'],
@@ -1275,6 +1328,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         version: expenseData['version'],
         customShares: _isCustomSplitMode ? _customShares : null,
         customPaidBy: _isCustomPaidByMode ? _customPaidBy : null,
+        images: expenseData['images'] != null ? List<String>.from(expenseData['images']) : null,
       );
 
       await groupProvider.addExpense(expense);
@@ -1345,6 +1399,170 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
         }
       }
+    }
+  }
+
+  Widget _buildImagesCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.photo_library,
+                color: Colors.purple.shade400,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Images',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          // Add image button
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _showImageSourceDialog,
+                  icon: Icon(Icons.add_photo_alternate, color: Colors.white),
+                  label: const Text('Add Images', style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple.shade400,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          // Display selected images
+          if (_selectedImages.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Selected Images (${_selectedImages.length}):',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 100,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _selectedImages.length,
+                itemBuilder: (context, index) {
+                  final image = _selectedImages[index];
+                  return Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            image,
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedImages.removeAt(index);
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showImageSourceDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Image Source'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Gallery'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Camera'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final imageFile = await ImageService.pickImage(source: source);
+    if (imageFile != null) {
+      setState(() {
+        _selectedImages.add(imageFile);
+      });
     }
   }
 } 

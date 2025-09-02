@@ -48,6 +48,9 @@ class Expense extends HiveObject {
   
   @HiveField(14)
   final Map<String, double>? customPaidBy; // Custom amounts paid by each person
+  
+  @HiveField(15)
+  final List<String>? images; // List of image filenames
 
   Expense({
     required this.id,
@@ -65,6 +68,7 @@ class Expense extends HiveObject {
     this.version,
     this.customShares,
     this.customPaidBy,
+    this.images,
   });
 
   Expense copyWith({
@@ -83,6 +87,7 @@ class Expense extends HiveObject {
     int? version,
     Map<String, double>? customShares,
     Map<String, double>? customPaidBy,
+    List<String>? images,
   }) {
     return Expense(
       id: id ?? this.id,
@@ -100,6 +105,7 @@ class Expense extends HiveObject {
       version: version ?? this.version,
       customShares: customShares ?? this.customShares,
       customPaidBy: customPaidBy ?? this.customPaidBy,
+      images: images ?? this.images,
     );
   }
 
@@ -120,6 +126,7 @@ class Expense extends HiveObject {
       'version': version,
       'customShares': customShares,
       'customPaidBy': customPaidBy,
+      'images': images,
     };
   }
 
@@ -143,6 +150,9 @@ class Expense extends HiveObject {
         : null,
       customPaidBy: json['customPaidBy'] != null 
         ? Map<String, double>.from(json['customPaidBy'])
+        : null,
+      images: json['images'] != null 
+        ? List<String>.from(json['images'])
         : null,
     );
   }
