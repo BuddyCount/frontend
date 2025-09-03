@@ -263,6 +263,17 @@ class GroupProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // Remove group from memory only (used by sync service when storage is already handled)
+  void removeGroupFromMemory(String groupId) {
+    _groups.removeWhere((group) => group.id == groupId);
+    if (_currentGroup?.id == groupId) {
+      _currentGroup = _groups.isNotEmpty ? _groups.first : null;
+    }
+    
+    print('Removed group $groupId from memory');
+    notifyListeners();
+  }
+
   Future<void> addExpense(Expense expense) async {
     // Find the correct group based on the expense's groupId
     final groupIndex = _groups.indexWhere((g) => g.id == expense.groupId);
@@ -329,6 +340,43 @@ class GroupProvider with ChangeNotifier {
     }
     
     print('Warning: Could not find expense with id $expenseId to remove');
+  }
+
+  Future<void> updateExpense(Expense updatedExpense) async {
+    // Find which group contains this expense
+    for (int i = 0; i < _groups.length; i++) {
+      final group = _groups[i];
+      final expenseIndex = group.expenses.indexWhere((e) => e.id == updatedExpense.id);
+      
+      if (expenseIndex != -1) {
+        // Update expense in this group
+        final updatedExpenses = List<Expense>.from(group.expenses);
+        updatedExpenses[expenseIndex] = updatedExpense;
+        final updatedGroup = group.copyWith(expenses: updatedExpenses);
+        
+        // Update the groups list
+        _groups[i] = updatedGroup;
+        
+        // Update current group if it's the same group
+        if (_currentGroup?.id == group.id) {
+          _currentGroup = updatedGroup;
+        }
+        
+        // Save the updated expense to storage
+        try {
+          await LocalStorageService.saveExpense(updatedExpense);
+          await LocalStorageService.saveGroup(updatedGroup);
+          print('Successfully updated expense ${updatedExpense.id} in storage');
+        } catch (e) {
+          print('Error updating expense in storage: $e');
+        }
+        
+        notifyListeners();
+        return;
+      }
+    }
+    
+    print('Warning: Could not find expense with id ${updatedExpense.id} to update');
   }
 
   void addPerson(Person person) {
