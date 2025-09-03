@@ -63,6 +63,8 @@ class AuthService {
 
         print('Authentication successful: $token');
         
+        final token = responseData['access_token'] as String?;//
+        
         if (token != null && token.isNotEmpty) {
           // Cache the token and device ID
           await _cacheToken(token, deviceId);
