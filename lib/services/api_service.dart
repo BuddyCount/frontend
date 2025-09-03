@@ -163,28 +163,34 @@ class ApiService {
       print('📄 Join Response body: ${joinResponse.body}');
       
       if (joinResponse.statusCode == 200 || joinResponse.statusCode == 201) {
-        final joinData = jsonDecode(joinResponse.body);
+        // Handle empty response body from join endpoint
+        Map<String, dynamic> joinData = {};
+        if (joinResponse.body.isNotEmpty) {
+          try {
+            joinData = jsonDecode(joinResponse.body);
+          } catch (e) {
+            print('⚠️ Failed to parse join response JSON: $e');
+            // Continue with empty joinData
+          }
+        }
         
-        // For GET request, the response should contain the group data directly
-        // or we might need to extract the group ID and fetch details separately
+        // Extract group ID - use the original groupId since join response might be empty
         final actualGroupId = joinData['id'] ?? joinData['groupId'] ?? groupId;
         
         print('✅ Successfully joined group, got ID: $actualGroupId');
         
         // If the response contains full group data, return it directly
-        if (joinData.containsKey('name') && joinData.containsKey('members')) {
+        if (joinData.containsKey('name') && (joinData.containsKey('members') || joinData.containsKey('users'))) {
           print('✅ Join response contains full group data');
           return {
             ...joinData,
             'actualGroupId': actualGroupId,
           };
         } else {
-          // Otherwise, fetch group details separately
+          // Otherwise, fetch group details with expenses in one request
           final groupResponse = await http.get(
-            Uri.parse('$baseUrl/group/$actualGroupId'),
-            headers: {
-              'Accept': 'application/json',
-            },
+            Uri.parse('$baseUrl/group/$actualGroupId?withExpenses=true'),
+            headers: await _getAuthHeaders(),
           ).timeout(
             const Duration(seconds: 10),
             onTimeout: () {
@@ -197,9 +203,9 @@ class ApiService {
           
           if (groupResponse.statusCode == 200) {
             final groupData = jsonDecode(groupResponse.body);
-            print('✅ Successfully retrieved group details');
+            print('✅ Successfully retrieved group details with expenses');
             
-            // Return combined data: join response + group details
+            // Return combined data: join response + group details with expenses
             return {
               ...joinData,
               'groupDetails': groupData,
@@ -261,13 +267,17 @@ class ApiService {
   }
   
   // Get group details by ID
-  static Future<Map<String, dynamic>> getGroupById(String groupId) async {
+  static Future<Map<String, dynamic>> getGroupById(String groupId, {bool withExpenses = false}) async {
     try {
-      print('📋 Fetching group details for ID: $groupId');
+      print('📋 Fetching group details for ID: $groupId (withExpenses: $withExpenses)');
       
       final headers = await _getAuthHeaders();
+      final url = withExpenses 
+          ? '$baseUrl/group/$groupId?withExpenses=true'
+          : '$baseUrl/groups/$groupId';
+      
       final response = await http.get(
-        Uri.parse('$baseUrl/groups/$groupId'),
+        Uri.parse(url),
         headers: headers,
       ).timeout(
         const Duration(seconds: 10),
@@ -280,7 +290,7 @@ class ApiService {
       
       if (response.statusCode == 200) {
         final groupData = jsonDecode(response.body);
-        print('✅ Successfully retrieved group details');
+        print('✅ Successfully retrieved group details${withExpenses ? ' with expenses' : ''}');
         return groupData;
       } else {
         print('❌ Get Group Error: ${response.statusCode} - ${response.body}');
@@ -322,6 +332,152 @@ class ApiService {
       throw Exception('Error deleting group: $e');
     }
   }
+
+  // Delete an expense
+  static Future<bool> deleteExpense(String expenseId) async {
+    try {
+      print('🗑️ Deleting expense via API: $expenseId');
+      
+      final headers = await _getAuthHeaders();
+      final response = await http.delete(
+        Uri.parse('$baseUrl/expense/$expenseId'),
+        headers: headers,
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Delete request timed out after 10 seconds');
+        },
+      );
+      
+      print('📡 Delete Expense Response: Status ${response.statusCode}');
+      
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        print('✅ Expense deleted successfully via API');
+        return true;
+      } else {
+        print('❌ Delete Expense Error: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to delete expense: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('💥 Exception in deleteExpense: $e');
+      throw Exception('Error deleting expense: $e');
+    }
+  }
+
+  // Update an existing expense
+  static Future<Map<String, dynamic>> updateExpense({
+    required String expenseId,
+    required String groupId,
+    required String name,
+    required double amount,
+    required String currency,
+    required String paidByPersonId,
+    required List<String> splitBetweenPersonIds,
+    required String category,
+    required double exchangeRate,
+    required List<String> memberNames, // Add member names for ID mapping
+    DateTime? date,
+    Map<String, double>? customShares, // New parameter for custom shares
+    Map<String, double>? customPaidBy, // New parameter for custom paid by amounts
+    List<String>? images, // New parameter for image filenames
+  }) async {
+    try {
+      print('💰 Updating expense via API: $name for group $groupId');
+      print('🔍 Images parameter received: $images');
+      print('🔍 Images is null: ${images == null}');
+      print('🔍 Images is empty: ${images?.isEmpty ?? true}');
+      
+      // Convert our simple model to the complex API format
+      final requestBody = {
+        'groupId': groupId,
+        'name': name,
+        'category': category,
+        'currency': currency,
+        'exchange_rate': exchangeRate,
+        'date': (date ?? DateTime.now()).toIso8601String().split('T')[0], // YYYY-MM-DD format
+        'amount': amount,
+        'paidBy': {
+          'repartitionType': 'AMOUNT',
+          'repartition': customPaidBy != null && customPaidBy.isNotEmpty
+            ? customPaidBy.entries.map((entry) => {
+                'userId': _mapStringIdToInt(entry.key, memberNames),
+                'values': {
+                  'amount': entry.value
+                }
+              }).toList()
+            : [
+                {
+                  'userId': _mapStringIdToInt(paidByPersonId, memberNames),
+                  'values': {
+                    'amount': amount
+                  }
+                }
+              ]
+        },
+        'paidFor': {
+          'repartitionType': 'PORTIONS', // Backend only accepts PORTIONS or AMOUNT, not SHARES
+          'repartition': customShares != null 
+            ? customShares.entries.map((entry) => {
+                'userId': _mapStringIdToInt(entry.key, memberNames),
+                'values': {
+                  'share': entry.value
+                }
+              }).toList()
+            : splitBetweenPersonIds.map((personId) => {
+                'userId': _mapStringIdToInt(personId, memberNames),
+                'values': {
+                  'share': 1
+                }
+              }).toList()
+        },
+        // Add images if provided
+        if (images != null && images.isNotEmpty) 'images': images,
+      };
+      
+      print('📤 Updating expense at: $baseUrl/expense/$expenseId');
+      print('📤 Request body: ${jsonEncode(requestBody)}');
+      print('🔍 Images in request body: ${requestBody['images']}');
+      
+      // Debug custom shares
+      if (customShares != null) {
+        print('🔍 Custom shares debug:');
+        print('🔍 Number of custom shares: ${customShares.length}');
+        customShares.forEach((key, value) {
+          print('  - Member ID: $key, Share: $value');
+        });
+        print('🔍 Total shares: ${customShares.values.fold(0.0, (sum, share) => sum + share)}');
+        print('🔍 Split between members: $splitBetweenPersonIds');
+        print('🔍 Member names: $memberNames');
+      }
+      
+      final headers = await _getAuthHeaders();
+      final response = await http.patch(
+        Uri.parse('$baseUrl/expense/$expenseId'),
+        headers: headers,
+        body: jsonEncode(requestBody),
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Request timed out after 10 seconds');
+        },
+      );
+      
+      print('📡 Update Expense Response: Status ${response.statusCode}');
+      print('📄 Response body: ${response.body}');
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = jsonDecode(response.body);
+        print('✅ Expense updated successfully: ${responseData['id'] ?? 'No ID returned'}');
+        return responseData;
+      } else {
+        print('❌ API Error: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to update expense: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('💥 Exception in updateExpense: $e');
+      throw Exception('Error updating expense: $e');
+    }
+  }
   
   // Create an expense
   static Future<Map<String, dynamic>> createExpense({
@@ -356,7 +512,7 @@ class ApiService {
         'amount': amount,
         'paidBy': {
           'repartitionType': 'AMOUNT',
-          'repartition': customPaidBy != null && customPaidBy!.isNotEmpty
+          'repartition': customPaidBy != null && customPaidBy.isNotEmpty
             ? customPaidBy.entries.map((entry) => {
                 'userId': _mapStringIdToInt(entry.key, memberNames),
                 'values': {

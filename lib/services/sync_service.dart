@@ -1,9 +1,7 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'local_storage_service.dart';
 import 'api_service.dart';
 import '../providers/group_provider.dart';
@@ -188,7 +186,7 @@ class SyncService {
   }
   
   // Delete group (online-first, offline-fallback)
-  Future<void> deleteGroupOffline(String groupId, BuildContext context) async {
+  Future<void> deleteGroupOffline(String groupId, BuildContext context, [GroupProvider? groupProvider]) async {
     print('🔍 SyncService: Deleting group $groupId, _isOnline = $_isOnline');
     
     // Double-check connectivity before making API call
@@ -217,8 +215,8 @@ class SyncService {
             await LocalStorageService.removeUserMemberMapping(groupId);
             
             if (context.mounted) {
-              final provider = Provider.of<GroupProvider>(context, listen: false);
-              provider.removeGroup(groupId);
+              final provider = groupProvider ?? Provider.of<GroupProvider>(context, listen: false);
+              provider.removeGroupFromMemory(groupId);
             }
             
             print('✅ Group deleted successfully via API: $groupId');
@@ -250,8 +248,8 @@ class SyncService {
     
     // Update the provider
     if (context.mounted) {
-      final provider = Provider.of<GroupProvider>(context, listen: false);
-      provider.removeGroup(groupId);
+      final provider = groupProvider ?? Provider.of<GroupProvider>(context, listen: false);
+      provider.removeGroupFromMemory(groupId);
     }
 
     // Add to pending operations for later sync
@@ -291,39 +289,68 @@ class SyncService {
             print('  - Member: ${member.name} (ID: ${member.id})');
           }
           
-          // Fetch expenses for the group
+          // Extract expenses from group data (they should be included with withExpenses=true)
           List<Expense> expenses = [];
           try {
-            print('🔍 Fetching expenses for group: $actualGroupId');
-            final expensesResponse = await http.get(
-              Uri.parse('$baseUrl/group/$actualGroupId/expense'),
-              headers: {
-                'Accept': 'application/json',
-              },
-            ).timeout(
-              const Duration(seconds: 10),
-              onTimeout: () {
-                throw Exception('Expenses request timed out after 10 seconds');
-              },
-            );
-            
-            print('📡 Expenses Response: Status ${expensesResponse.statusCode}');
-            print('📄 Expenses Response body: ${expensesResponse.body}');
-            
-            if (expensesResponse.statusCode == 200) {
-              final expensesData = jsonDecode(expensesResponse.body);
-              if (expensesData is List) {
-                expenses = expensesData.map((expenseJson) => Expense.fromJson(expenseJson)).toList();
-                print('✅ Successfully fetched ${expenses.length} expenses');
-              } else {
-                print('⚠️ Unexpected expenses response format');
-              }
+            if (groupData['expenses'] != null) {
+              print('📋 Found ${(groupData['expenses'] as List).length} expenses in group data');
+              
+              expenses = (groupData['expenses'] as List).map((expenseData) {
+                // Extract split information from paidFor field
+                List<String> splitBetween = [];
+                if (expenseData['paidFor'] != null && expenseData['paidFor']['repartition'] != null) {
+                  final repartition = expenseData['paidFor']['repartition'] as List;
+                  for (final item in repartition) {
+                    final userId = item['userId'].toString();
+                    // Find member by ID and add the ID to splitBetween (not the name)
+                    final member = members.firstWhere(
+                      (m) => m.id == userId,
+                      orElse: () => members.first,
+                    );
+                    splitBetween.add(member.id); // Use ID, not name
+                  }
+                }
+                
+                // Extract paidBy information from API response
+                String paidBy = members.first.id; // Default fallback
+                if (expenseData['paidBy'] != null && expenseData['paidBy']['repartition'] != null) {
+                  final repartition = expenseData['paidBy']['repartition'] as List;
+                  if (repartition.isNotEmpty) {
+                    final userId = repartition.first['userId'].toString();
+                    // Find member by ID
+                    final member = members.firstWhere(
+                      (m) => m.id == userId,
+                      orElse: () => members.first,
+                    );
+                    paidBy = member.id; // Use member ID
+                  }
+                }
+                
+                return Expense(
+                  id: expenseData['id'].toString(),
+                  name: expenseData['name'],
+                  amount: expenseData['amount'].toDouble(),
+                  currency: expenseData['currency'],
+                  paidBy: paidBy,
+                  splitBetween: splitBetween,
+                  date: DateTime.parse(expenseData['date']),
+                  groupId: actualGroupId,
+                  category: expenseData['category'],
+                  exchangeRate: expenseData['exchangeRate']?.toDouble(),
+                  createdAt: DateTime.parse(expenseData['createdAt']),
+                  updatedAt: expenseData['updatedAt'] != null ? DateTime.parse(expenseData['updatedAt']) : null,
+                  version: expenseData['version'],
+                  images: expenseData['images'] != null ? List<String>.from(expenseData['images']) : null,
+                );
+              }).toList();
+              
+              print('✅ Parsed ${expenses.length} expenses from group data');
             } else {
-              print('⚠️ Failed to fetch expenses: ${expensesResponse.statusCode} - ${expensesResponse.body}');
+              print('📋 No expenses found in group data, using empty list');
             }
           } catch (e) {
-            print('⚠️ Error fetching expenses: $e');
-            // Continue without expenses - group will be created with empty expenses list
+            print('⚠️ Failed to parse expenses from group data, continuing with empty list: $e');
+            // Continue with empty expenses list
           }
           final group = Group(
             id: actualGroupId,
@@ -390,6 +417,164 @@ class SyncService {
     if (_isOnline) {
       _syncPendingOperations(context);
     }
+  }
+
+  // Update expense (online-first, offline-fallback)
+  Future<void> updateExpenseOffline(Expense expense, BuildContext context, [GroupProvider? groupProvider]) async {
+    print('🔍 SyncService: Updating expense ${expense.id}, _isOnline = $_isOnline');
+    
+    // Double-check connectivity before making API call
+    final isActuallyOnline = await checkConnectivity();
+    print('🔍 Double-check connectivity: isActuallyOnline = $isActuallyOnline');
+    
+    if (isActuallyOnline) {
+      // Test backend connectivity specifically
+      final backendReachable = await ApiService.testConnectivity();
+      print('🔍 Backend connectivity test: $backendReachable');
+      
+      // If connectivity test fails but we have internet, try API calls anyway
+      if (backendReachable || isActuallyOnline) {
+        // Try to update expense via API first
+        try {
+          print('🌐 Attempting to update expense via API: ${expense.id}');
+          
+          // Get current group for member names
+          final provider = groupProvider ?? Provider.of<GroupProvider>(context, listen: false);
+          final currentGroup = provider.currentGroup;
+          if (currentGroup == null) {
+            throw Exception('No current group found');
+          }
+          
+          await ApiService.updateExpense(
+            expenseId: expense.id,
+            groupId: expense.groupId,
+            name: expense.name,
+            amount: expense.amount,
+            currency: expense.currency,
+            paidByPersonId: expense.paidBy,
+            splitBetweenPersonIds: expense.splitBetween,
+            category: expense.category ?? 'OTHER',
+            exchangeRate: expense.exchangeRate ?? 1.0,
+            memberNames: currentGroup.members.map((m) => m.name).toList(),
+            date: expense.date,
+            customShares: expense.customShares,
+            customPaidBy: expense.customPaidBy,
+            images: expense.images,
+          );
+          
+          // API succeeded - update local storage and provider
+          await LocalStorageService.saveExpense(expense);
+          
+          if (context.mounted) {
+            final provider = groupProvider ?? Provider.of<GroupProvider>(context, listen: false);
+            provider.updateExpense(expense);
+          }
+          
+          print('✅ Expense updated successfully via API: ${expense.id}');
+          return;
+          
+        } catch (e) {
+          print('⚠️ API update failed, falling back to offline mode: $e');
+          print('🔍 Error details: ${e.toString()}');
+          print('🔍 Error type: ${e.runtimeType}');
+          if (e is Exception) {
+            print('🔍 Exception message: ${e.toString()}');
+          }
+          // Fall through to offline update
+        }
+      } else {
+        print('⚠️ Backend not reachable, falling back to offline mode');
+      }
+    }
+    
+    // Offline update (fallback or when offline)
+    print('📱 Updating expense offline: ${expense.id}');
+    
+    // Update local storage immediately
+    await LocalStorageService.saveExpense(expense);
+    
+    // Update the provider
+    if (context.mounted) {
+      final provider = groupProvider ?? Provider.of<GroupProvider>(context, listen: false);
+      provider.updateExpense(expense);
+    }
+
+    // Add to pending operations for later sync
+    await LocalStorageService.addPendingOperation('update_expense', {
+      'expenseId': expense.id,
+      'groupId': expense.groupId,
+      'data': expense.toJson(),
+    });
+
+    print('📱 Expense updated offline with ID: ${expense.id} (will sync when online)');
+  }
+
+  // Delete expense (online-first, offline-fallback)
+  Future<void> deleteExpenseOffline(String expenseId, BuildContext context, [GroupProvider? groupProvider]) async {
+    print('🔍 SyncService: Deleting expense $expenseId, _isOnline = $_isOnline');
+    
+    // Double-check connectivity before making API call
+    final isActuallyOnline = await checkConnectivity();
+    print('🔍 Double-check connectivity: isActuallyOnline = $isActuallyOnline');
+    
+    if (isActuallyOnline) {
+      // Test backend connectivity specifically
+      final backendReachable = await ApiService.testConnectivity();
+      print('🔍 Backend connectivity test: $backendReachable');
+      
+      // If connectivity test fails but we have internet, try API calls anyway
+      if (backendReachable || isActuallyOnline) {
+        // Try to delete expense via API first
+        try {
+          print('🌐 Attempting to delete expense via API: $expenseId');
+          
+          final success = await ApiService.deleteExpense(expenseId);
+          
+          if (success) {
+            // API succeeded - remove from local storage and provider
+            await LocalStorageService.deleteExpense(expenseId);
+            
+            if (context.mounted) {
+              final provider = groupProvider ?? Provider.of<GroupProvider>(context, listen: false);
+              provider.removeExpense(expenseId);
+            }
+            
+            print('✅ Expense deleted successfully via API: $expenseId');
+            return;
+          }
+          
+        } catch (e) {
+          print('⚠️ API deletion failed, falling back to offline mode: $e');
+          print('🔍 Error details: ${e.toString()}');
+          print('🔍 Error type: ${e.runtimeType}');
+          if (e is Exception) {
+            print('🔍 Exception message: ${e.toString()}');
+          }
+          // Fall through to offline deletion
+        }
+      } else {
+        print('⚠️ Backend not reachable, falling back to offline mode');
+      }
+    }
+    
+    // Offline deletion (fallback or when offline)
+    print('📱 Deleting expense offline: $expenseId');
+    
+    // Remove from local storage immediately
+    await LocalStorageService.deleteExpense(expenseId);
+    
+    // Update the provider
+    if (context.mounted) {
+      final provider = groupProvider ?? Provider.of<GroupProvider>(context, listen: false);
+      provider.removeExpense(expenseId);
+    }
+
+    // Add to pending operations for later sync
+    await LocalStorageService.addPendingOperation('delete_expense', {
+      'expenseId': expenseId,
+    });
+
+    print('📱 Expense deleted offline with ID: $expenseId (will sync when online)');
   }
   
 

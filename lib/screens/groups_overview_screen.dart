@@ -283,6 +283,9 @@ class GroupsOverviewScreen extends StatelessWidget {
           ),
           TextButton(
             onPressed: () async {
+              // Get provider reference before closing dialog
+              final groupProvider = Provider.of<GroupProvider>(context, listen: false);
+              
               Navigator.of(context).pop();
               
               // Show loading indicator
@@ -293,18 +296,38 @@ class GroupsOverviewScreen extends StatelessWidget {
                 ),
               );
               
-              // Use sync service to delete the group
-              final syncService = SyncService();
-              await syncService.deleteGroupOffline(group.id, context);
-              
-              // Show success message
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Group "${group.name}" deleted successfully'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
+              // Delete group directly from provider and storage
+              try {
+                // Remove from provider immediately
+                groupProvider.removeGroup(group.id);
+                
+                // Show success message
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Group "${group.name}" deleted successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+                
+                // Try to delete from API in background (don't wait for it)
+                final syncService = SyncService();
+                syncService.deleteGroupOffline(group.id, context, groupProvider).catchError((e) {
+                  print('Background API deletion failed: $e');
+                  // Don't show error to user since local deletion succeeded
+                });
+                
+              } catch (e) {
+                print('Error deleting group: $e');
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error deleting group: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             style: TextButton.styleFrom(

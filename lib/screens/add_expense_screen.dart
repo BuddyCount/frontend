@@ -10,7 +10,9 @@ import '../services/image_service.dart';
 import 'package:intl/intl.dart';
 
 class AddExpenseScreen extends StatefulWidget {
-  const AddExpenseScreen({super.key});
+  final Expense? expenseToEdit; // Optional expense to edit
+  
+  const AddExpenseScreen({super.key, this.expenseToEdit});
 
   @override
   State<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -45,32 +47,76 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final groupProvider = Provider.of<GroupProvider>(context, listen: false);
       if (groupProvider.currentGroup != null) {
-        // Try to auto-fill with user's selected member
-        final userMember = groupProvider.getUserMember(groupProvider.currentGroup!.id);
-        
-        if (userMember != null) {
-          _selectedPayer = userMember.id;
-          print('Auto-filled payer with user member: ${userMember.name}');
+        if (widget.expenseToEdit != null) {
+          // Edit mode - populate form with existing expense data
+          _populateFormForEdit(widget.expenseToEdit!);
         } else {
-          // Fallback to first member if user hasn't selected one
-        _selectedPayer = groupProvider.currentGroup!.members.first.id;
-          print('No user member selected, using first member as payer');
-        }
-        
-        // Auto-fill currency and exchange rate based on group
-        _selectedCurrency = groupProvider.currentGroup!.currency;
-        if (_selectedCurrency != groupProvider.currentGroup!.currency) {
-          // Different currency, set exchange rate to 1.0 as default
-          _exchangeRateController.text = '1.0';
-          print('Different currency detected, set default exchange rate to 1.0');
-        }
-        
-        for (var person in groupProvider.currentGroup!.members) {
-          _selectedMembers.add(person.id);
+          // Add mode - use default values
+          _populateFormForAdd(groupProvider);
         }
         setState(() {});
       }
     });
+  }
+
+  void _populateFormForEdit(Expense expense) {
+    _nameController.text = expense.name;
+    _amountController.text = expense.amount.toString();
+    _selectedCurrency = expense.currency;
+    _selectedPayer = expense.paidBy;
+    _selectedDate = expense.date;
+    _selectedMembers.clear();
+    _selectedMembers.addAll(expense.splitBetween);
+    _selectedCategory = expense.category ?? 'FOOD';
+    _exchangeRateController.text = (expense.exchangeRate ?? 1.0).toString();
+    
+    // Handle custom shares if they exist
+    if (expense.customShares != null && expense.customShares!.isNotEmpty) {
+      _isCustomSplitMode = true;
+      _customShares.clear();
+      _customShares.addAll(expense.customShares!);
+    }
+    
+    // Handle custom paid by if it exists
+    if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) {
+      _isCustomPaidByMode = true;
+      _customPaidBy.clear();
+      _customPaidBy.addAll(expense.customPaidBy!);
+    }
+    
+    // Handle existing images
+    if (expense.images != null && expense.images!.isNotEmpty) {
+      _uploadedImageFilenames.clear();
+      _uploadedImageFilenames.addAll(expense.images!);
+    }
+    
+    print('Form populated for editing expense: ${expense.name}');
+  }
+
+  void _populateFormForAdd(GroupProvider groupProvider) {
+    // Try to auto-fill with user's selected member
+    final userMember = groupProvider.getUserMember(groupProvider.currentGroup!.id);
+    
+    if (userMember != null) {
+      _selectedPayer = userMember.id;
+      print('Auto-filled payer with user member: ${userMember.name}');
+    } else {
+      // Fallback to first member if user hasn't selected one
+      _selectedPayer = groupProvider.currentGroup!.members.first.id;
+      print('No user member selected, using first member as payer');
+    }
+    
+    // Auto-fill currency and exchange rate based on group
+    _selectedCurrency = groupProvider.currentGroup!.currency;
+    if (_selectedCurrency != groupProvider.currentGroup!.currency) {
+      // Different currency, set exchange rate to 1.0 as default
+      _exchangeRateController.text = '1.0';
+      print('Different currency detected, set default exchange rate to 1.0');
+    }
+    
+    for (var person in groupProvider.currentGroup!.members) {
+      _selectedMembers.add(person.id);
+    }
   }
 
   @override
@@ -134,9 +180,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Add New Expense',
-                                style: TextStyle(
+                              Text(
+                                widget.expenseToEdit != null ? 'Edit Expense' : 'Add New Expense',
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
@@ -424,17 +470,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         setState(() {
           _selectedCurrency = value!;
                       
-                      // Auto-update exchange rate when currency changes
-                      if (value != null) {
-                        final currentGroup = Provider.of<GroupProvider>(context, listen: false).currentGroup;
-                        if (currentGroup != null && value != currentGroup.currency) {
-                          // Different currency, set exchange rate to 1.0 as default
-                          _exchangeRateController.text = '1.0';
-                        } else {
-                          // Same currency, set exchange rate to 1.0
-                          _exchangeRateController.text = '1.0';
-                        }
-                      }
+          // Auto-update exchange rate when currency changes
+          final currentGroup = Provider.of<GroupProvider>(context, listen: false).currentGroup;
+          if (currentGroup != null && value != currentGroup.currency) {
+            // Different currency, set exchange rate to 1.0 as default
+            _exchangeRateController.text = '1.0';
+          } else {
+            // Same currency, set exchange rate to 1.0
+            _exchangeRateController.text = '1.0';
+          }
         });
       },
                 ),
@@ -1252,6 +1296,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     final currentGroup = groupProvider.currentGroup;
     if (currentGroup == null) return;
 
+    final isEditMode = widget.expenseToEdit != null;
+
     try {
       // Clear any previously uploaded filenames
       _uploadedImageFilenames.clear();
@@ -1276,68 +1322,110 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       }
       
       // Debug: Check if images are being passed to API
-      print('🔍 About to create expense with images: $_uploadedImageFilenames');
+      print('🔍 About to ${isEditMode ? 'update' : 'create'} expense with images: $_uploadedImageFilenames');
       print('🔍 Images list is empty: ${_uploadedImageFilenames.isEmpty}');
       
-      // Try to create expense via API first
-      final expenseData = await ApiService.createExpense(
-        groupId: currentGroup.id,
-        name: _nameController.text,
-        amount: double.parse(_amountController.text),
-        currency: _selectedCurrency,
-        paidByPersonId: _selectedPayer,
-        splitBetweenPersonIds: _selectedMembers,
-        category: _selectedCategory,
-        exchangeRate: double.parse(_exchangeRateController.text),
-        memberNames: currentGroup.members.map((m) => m.name).toList(),
-        date: _selectedDate,
-        customShares: _isCustomSplitMode ? _customShares : null,
-        customPaidBy: _isCustomPaidByMode ? _customPaidBy : null,
-        images: _uploadedImageFilenames.isNotEmpty ? _uploadedImageFilenames : null,
-      );
+      Map<String, dynamic> expenseData;
+      
+      if (isEditMode) {
+        // Update existing expense via API
+        expenseData = await ApiService.updateExpense(
+          expenseId: widget.expenseToEdit!.id,
+          groupId: currentGroup.id,
+          name: _nameController.text,
+          amount: double.parse(_amountController.text),
+          currency: _selectedCurrency,
+          paidByPersonId: _selectedPayer,
+          splitBetweenPersonIds: _selectedMembers,
+          category: _selectedCategory,
+          exchangeRate: double.parse(_exchangeRateController.text),
+          memberNames: currentGroup.members.map((m) => m.name).toList(),
+          date: _selectedDate,
+          customShares: _isCustomSplitMode ? _customShares : null,
+          customPaidBy: _isCustomPaidByMode ? _customPaidBy : null,
+          images: _uploadedImageFilenames.isNotEmpty ? _uploadedImageFilenames : null,
+        );
+      } else {
+        // Create new expense via API
+        expenseData = await ApiService.createExpense(
+          groupId: currentGroup.id,
+          name: _nameController.text,
+          amount: double.parse(_amountController.text),
+          currency: _selectedCurrency,
+          paidByPersonId: _selectedPayer,
+          splitBetweenPersonIds: _selectedMembers,
+          category: _selectedCategory,
+          exchangeRate: double.parse(_exchangeRateController.text),
+          memberNames: currentGroup.members.map((m) => m.name).toList(),
+          date: _selectedDate,
+          customShares: _isCustomSplitMode ? _customShares : null,
+          customPaidBy: _isCustomPaidByMode ? _customPaidBy : null,
+          images: _uploadedImageFilenames.isNotEmpty ? _uploadedImageFilenames : null,
+        );
+      }
 
-      // Extract split information from paidFor field
-      List<String> splitBetween = [];
-      if (expenseData['paidFor'] != null && expenseData['paidFor']['repartition'] != null) {
+      // Extract split information from paidFor field (only for create, not update)
+      List<String> splitBetween = _selectedMembers; // Use form data for both create and update
+      if (!isEditMode && expenseData['paidFor'] != null && expenseData['paidFor']['repartition'] != null) {
+        splitBetween = [];
         final repartition = expenseData['paidFor']['repartition'] as List;
         for (final item in repartition) {
           final userId = item['userId'].toString();
-          // Find member name by ID
+          // Find member by ID and add the ID to splitBetween (not the name)
           final member = currentGroup.members.firstWhere(
             (m) => m.id == userId,
             orElse: () => currentGroup.members.first,
           );
-          splitBetween.add(member.name);
+          splitBetween.add(member.id); // Use ID, not name
+        }
+      }
+      
+      // Extract paidBy information from API response (only for create, not update)
+      String paidBy = _selectedPayer; // Use form data for both create and update
+      if (!isEditMode && expenseData['paidBy'] != null && expenseData['paidBy']['repartition'] != null) {
+        final repartition = expenseData['paidBy']['repartition'] as List;
+        if (repartition.isNotEmpty) {
+          final userId = repartition.first['userId'].toString();
+          // Find member by ID
+          final member = currentGroup.members.firstWhere(
+            (m) => m.id == userId,
+            orElse: () => currentGroup.members.first,
+          );
+          paidBy = member.id; // Use member ID
         }
       }
       
       // Create expense locally from API response
       final expense = Expense(
-        id: expenseData['id'].toString(),
-        name: expenseData['name'],
-        amount: expenseData['amount'].toDouble(),
-        currency: expenseData['currency'],
-        paidBy: expenseData['paidBy'].toString(),
+        id: isEditMode ? widget.expenseToEdit!.id : expenseData['id'].toString(),
+        name: isEditMode ? _nameController.text : expenseData['name'],
+        amount: isEditMode ? double.parse(_amountController.text) : expenseData['amount'].toDouble(),
+        currency: isEditMode ? _selectedCurrency : expenseData['currency'],
+        paidBy: paidBy,
         splitBetween: splitBetween,
-        date: DateTime.parse(expenseData['date']),
+        date: isEditMode ? _selectedDate : DateTime.parse(expenseData['date']),
         groupId: currentGroup.id,
-        category: expenseData['category'],
-        exchangeRate: expenseData['exchangeRate']?.toDouble(),
-        createdAt: DateTime.parse(expenseData['createdAt']),
-        updatedAt: expenseData['updatedAt'] != null ? DateTime.parse(expenseData['updatedAt']) : null,
-        version: expenseData['version'],
+        category: isEditMode ? _selectedCategory : expenseData['category'],
+        exchangeRate: isEditMode ? double.parse(_exchangeRateController.text) : expenseData['exchangeRate']?.toDouble(),
+        createdAt: isEditMode ? widget.expenseToEdit!.createdAt : DateTime.parse(expenseData['createdAt']),
+        updatedAt: DateTime.now(), // Always set updatedAt to now for edits
+        version: isEditMode ? (widget.expenseToEdit!.version ?? 1) + 1 : expenseData['version'],
         customShares: _isCustomSplitMode ? _customShares : null,
         customPaidBy: _isCustomPaidByMode ? _customPaidBy : null,
-        images: expenseData['images'] != null ? List<String>.from(expenseData['images']) : null,
+        images: _uploadedImageFilenames.isNotEmpty ? _uploadedImageFilenames : (isEditMode ? widget.expenseToEdit!.images : (expenseData['images'] != null ? List<String>.from(expenseData['images']) : null)),
       );
 
-      await groupProvider.addExpense(expense);
+      if (isEditMode) {
+        await groupProvider.updateExpense(expense);
+      } else {
+        await groupProvider.addExpense(expense);
+      }
 
       // Show success message
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Expense created successfully!'),
+          SnackBar(
+            content: Text('Expense ${isEditMode ? 'updated' : 'created'} successfully!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -1348,36 +1436,41 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       }
       
     } catch (e) {
-      print('Error creating expense via API: $e');
+      print('Error ${isEditMode ? 'updating' : 'creating'} expense via API: $e');
       
-      // Fallback to offline creation
+      // Fallback to offline creation/update
       try {
-        // Create expense locally with generated ID
-    final expense = Expense(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+        // Create expense locally with generated ID (for new expenses) or existing ID (for updates)
+        final expense = Expense(
+          id: isEditMode ? widget.expenseToEdit!.id : DateTime.now().millisecondsSinceEpoch.toString(),
           name: _nameController.text,
-      amount: double.parse(_amountController.text),
-      currency: _selectedCurrency,
+          amount: double.parse(_amountController.text),
+          currency: _selectedCurrency,
           paidBy: _selectedPayer,
           splitBetween: _selectedMembers,
-      date: _selectedDate,
+          date: _selectedDate,
           groupId: currentGroup.id,
           category: _selectedCategory,
           exchangeRate: double.parse(_exchangeRateController.text),
-          createdAt: DateTime.now(),
+          createdAt: isEditMode ? widget.expenseToEdit!.createdAt : DateTime.now(),
           customShares: _isCustomSplitMode ? _customShares : null,
           customPaidBy: _isCustomPaidByMode ? _customPaidBy : null,
+          images: _uploadedImageFilenames.isNotEmpty ? _uploadedImageFilenames : null,
         );
 
-        await groupProvider.addExpense(expense);
+        if (isEditMode) {
+          await groupProvider.updateExpense(expense);
+        } else {
+          await groupProvider.addExpense(expense);
+        }
 
         // Show offline success message
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Expense created offline (will sync when online)'),
+            SnackBar(
+              content: Text('Expense ${isEditMode ? 'updated' : 'created'} offline (will sync when online)'),
               backgroundColor: Colors.orange,
-              duration: Duration(seconds: 3),
+              duration: const Duration(seconds: 3),
             ),
           );
         }

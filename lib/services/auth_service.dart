@@ -55,9 +55,9 @@ class AuthService {
         }),
       );
       
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
-        final token = responseData['token'] as String?;
+        final token = responseData['access_token'] as String?;
         
         if (token != null && token.isNotEmpty) {
           // Cache the token and device ID

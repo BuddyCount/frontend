@@ -4,6 +4,7 @@ import '../providers/group_provider.dart';
 import '../models/expense.dart';
 import '../models/group.dart';
 import '../services/image_service.dart';
+import '../services/auth_service.dart';
 import 'package:intl/intl.dart';
 
 class ExpenseDetailScreen extends StatelessWidget {
@@ -337,35 +338,7 @@ class ExpenseDetailScreen extends StatelessWidget {
                   onTap: () => _showImageDialog(context, imageUrl),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
-                          color: Colors.grey.shade200,
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded /
-                                      loadingProgress.expectedTotalBytes!
-                                  : null,
-                            ),
-                          ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey.shade200,
-                          child: const Center(
-                            child: Icon(
-                              Icons.error,
-                              color: Colors.red,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                    child: _buildAuthenticatedImage(imageUrl),
                   ),
                 );
               },
@@ -445,6 +418,66 @@ class ExpenseDetailScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildAuthenticatedImage(String imageUrl, {BoxFit fit = BoxFit.cover}) {
+    return FutureBuilder<Map<String, String>>(
+      future: _getAuthHeaders(),
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return Image.network(
+            imageUrl,
+            fit: fit,
+            headers: snapshot.data!,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Container(
+                color: Colors.grey.shade200,
+                child: Center(
+                  child: CircularProgressIndicator(
+                    value: loadingProgress.expectedTotalBytes != null
+                        ? loadingProgress.cumulativeBytesLoaded /
+                            loadingProgress.expectedTotalBytes!
+                        : null,
+                  ),
+                ),
+              );
+            },
+            errorBuilder: (context, error, stackTrace) {
+              print('❌ Image load error: $error');
+              print('❌ Image URL: $imageUrl');
+              return Container(
+                color: Colors.grey.shade200,
+                child: const Center(
+                  child: Icon(
+                    Icons.error,
+                    color: Colors.red,
+                  ),
+                ),
+              );
+            },
+          );
+        } else {
+          return Container(
+            color: Colors.grey.shade200,
+            child: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  Future<Map<String, String>> _getAuthHeaders() async {
+    final token = await AuthService.getToken();
+    final headers = <String, String>{};
+    
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    
+    return headers;
+  }
+
   void _showImageDialog(BuildContext context, String imageUrl) {
     showDialog(
       context: context,
@@ -470,30 +503,7 @@ class ExpenseDetailScreen extends StatelessWidget {
               ),
               Expanded(
                 child: InteractiveViewer(
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.contain,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Center(
-                        child: Icon(
-                          Icons.error,
-                          color: Colors.red,
-                          size: 48,
-                        ),
-                      );
-                    },
-                  ),
+                  child: _buildAuthenticatedImage(imageUrl, fit: BoxFit.contain),
                 ),
               ),
             ],
