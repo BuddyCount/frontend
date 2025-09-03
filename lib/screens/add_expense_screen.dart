@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+
+
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+
 import '../providers/group_provider.dart';
 import '../models/expense.dart';
 import '../services/api_service.dart';
 import '../services/image_service.dart';
+import '../services/auth_service.dart';
 
 import 'package:intl/intl.dart';
 
@@ -37,7 +41,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   Map<String, double> _customPaidBy = {}; // memberId -> amount paid
   
   // Images
-  final List<File> _selectedImages = [];
+  final List<XFile> _selectedImages = [];
   final List<String> _uploadedImageFilenames = [];
   String _selectedCategory = 'FOOD';
   final TextEditingController _exchangeRateController = TextEditingController(text: '1.0');
@@ -468,7 +472,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     DropdownMenuItem(value: 'CHF', child: Text('CHF')),
                   ],
       onChanged: (value) {
-        setState(() {
+                setState(() {
           _selectedCurrency = value!;
                       
           // Auto-update exchange rate when currency changes
@@ -1303,6 +1307,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       // Clear any previously uploaded filenames
       _uploadedImageFilenames.clear();
       
+      // Get authentication token once and reuse it
+      final token = await AuthService.getToken();
+      print('🔐 Got token for expense creation: ${token != null ? 'Present' : 'NULL'}');
+      
       // Upload images first if any are selected
       if (_selectedImages.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1313,7 +1321,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         );
         
         for (final imageFile in _selectedImages) {
-          final filename = await ImageService.uploadImage(imageFile);
+          final filename = await ImageService.uploadImage(imageFile, token: token);
           if (filename != null) {
             _uploadedImageFilenames.add(filename);
           }
@@ -1579,27 +1587,21 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: kIsWeb 
-                            ? Image.network(
-                                image.path, // On web, XFile.path is a blob URL
+                          child: Image.network(
+                            image.path, // XFile.path works for both web and mobile
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
                                 width: 100,
                                 height: 100,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    width: 100,
-                                    height: 100,
-                                    color: Colors.grey.shade300,
-                                    child: const Icon(Icons.error),
-                                  );
-                                },
-                              )
-                            : Image.file(
-                                image,
-                                width: 100,
-                                height: 100,
-                                fit: BoxFit.cover,
-                              ),
+                                color: Colors.grey.shade300,
+                                child: const Icon(Icons.error),
+                              );
+                            },
+                          ),
+
                         ),
                         Positioned(
                           top: 4,

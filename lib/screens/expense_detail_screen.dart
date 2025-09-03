@@ -5,7 +5,10 @@ import '../models/expense.dart';
 import '../models/group.dart';
 import '../services/image_service.dart';
 import '../services/auth_service.dart';
+import 'add_expense_screen.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:typed_data';
 
 class ExpenseDetailScreen extends StatelessWidget {
   final Expense expense;
@@ -22,11 +25,11 @@ class ExpenseDetailScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () {
-              // TODO: Navigate to edit expense screen
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Edit functionality coming soon!'),
-                  backgroundColor: Colors.orange,
+              // Navigate to edit expense screen
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AddExpenseScreen(expenseToEdit: expense),
                 ),
               );
             },
@@ -333,12 +336,12 @@ class ExpenseDetailScreen extends StatelessWidget {
               ),
               itemCount: expense.images!.length,
               itemBuilder: (context, index) {
-                final imageUrl = ImageService.getImageUrl(expense.images![index]);
+                final filename = expense.images![index];
                 return GestureDetector(
-                  onTap: () => _showImageDialog(context, imageUrl),
+                  onTap: () => _showImageDialog(context, filename),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: _buildAuthenticatedImage(imageUrl),
+                    child: _AuthenticatedImage(filename: filename),
                   ),
                 );
               },
@@ -418,67 +421,7 @@ class ExpenseDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAuthenticatedImage(String imageUrl, {BoxFit fit = BoxFit.cover}) {
-    return FutureBuilder<Map<String, String>>(
-      future: _getAuthHeaders(),
-      builder: (context, snapshot) {
-        if (snapshot.hasData) {
-          return Image.network(
-            imageUrl,
-            fit: fit,
-            headers: snapshot.data!,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return Container(
-                color: Colors.grey.shade200,
-                child: Center(
-                  child: CircularProgressIndicator(
-                    value: loadingProgress.expectedTotalBytes != null
-                        ? loadingProgress.cumulativeBytesLoaded /
-                            loadingProgress.expectedTotalBytes!
-                        : null,
-                  ),
-                ),
-              );
-            },
-            errorBuilder: (context, error, stackTrace) {
-              print('❌ Image load error: $error');
-              print('❌ Image URL: $imageUrl');
-              return Container(
-                color: Colors.grey.shade200,
-                child: const Center(
-                  child: Icon(
-                    Icons.error,
-                    color: Colors.red,
-                  ),
-                ),
-              );
-            },
-          );
-        } else {
-          return Container(
-            color: Colors.grey.shade200,
-            child: const Center(
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-      },
-    );
-  }
-
-  Future<Map<String, String>> _getAuthHeaders() async {
-    final token = await AuthService.getToken();
-    final headers = <String, String>{};
-    
-    if (token != null) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-    
-    return headers;
-  }
-
-  void _showImageDialog(BuildContext context, String imageUrl) {
+  void _showImageDialog(BuildContext context, String filename) {
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -503,11 +446,135 @@ class ExpenseDetailScreen extends StatelessWidget {
               ),
               Expanded(
                 child: InteractiveViewer(
-                  child: _buildAuthenticatedImage(imageUrl, fit: BoxFit.contain),
+                  child: _AuthenticatedImage(filename: filename),
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Widget for displaying images that require authentication
+class _AuthenticatedImage extends StatefulWidget {
+  final String filename;
+  
+  const _AuthenticatedImage({required this.filename});
+  
+  @override
+  State<_AuthenticatedImage> createState() => _AuthenticatedImageState();
+}
+
+class _AuthenticatedImageState extends State<_AuthenticatedImage> {
+  Uint8List? _imageBytes;
+  bool _isLoading = true;
+  String? _error;
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadImage();
+  }
+  
+  Future<void> _loadImage() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+      
+      // Get authentication token
+      final token = await AuthService.getToken();
+      if (token == null) {
+        setState(() {
+          _error = 'Authentication required';
+          _isLoading = false;
+        });
+        return;
+      }
+      
+      // Make authenticated request to get image
+      final imageUrl = ImageService.getImageUrl(widget.filename);
+      final response = await http.get(
+        Uri.parse(imageUrl),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'image/*',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        setState(() {
+          _imageBytes = response.bodyBytes;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _error = 'Failed to load image (${response.statusCode})';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Error loading image: $e';
+        _isLoading = false;
+      });
+    }
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Container(
+        color: Colors.grey.shade200,
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
+    if (_error != null) {
+      return Container(
+        color: Colors.grey.shade200,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error,
+                color: Colors.red,
+                size: 48,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                style: const TextStyle(
+                  color: Colors.red,
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    if (_imageBytes != null) {
+      return Image.memory(
+        _imageBytes!,
+        fit: BoxFit.cover,
+      );
+    }
+    
+    return Container(
+      color: Colors.grey.shade200,
+      child: const Center(
+        child: Icon(
+          Icons.image_not_supported,
+          color: Colors.grey,
         ),
       ),
     );

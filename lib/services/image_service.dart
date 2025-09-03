@@ -1,26 +1,26 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
 
 class ImageService {
   static const String baseUrl = 'https://api.buddycount.duckdns.org';
   
   /// Upload an image file to the server
-  static Future<String?> uploadImage(File imageFile) async {
+  static Future<String?> uploadImage(XFile imageFile, {String? token}) async {
     try {
       print('📸 Uploading image: ${imageFile.path}');
       
       // Get authentication headers
-      final token = await AuthService.getToken();
+      final authToken = token ?? await AuthService.getToken();
       final headers = {
         'Accept': 'application/json',
       };
       
-      if (token != null) {
-        headers['Authorization'] = 'Bearer $token';
+      if (authToken != null) {
+        headers['Authorization'] = 'Bearer $authToken';
       }
       
       // Create multipart request
@@ -56,13 +56,29 @@ class ImageService {
       print('📸 Uploading file with content type: ${contentType.toString()}');
       
       // Add the image file with proper content type
-      request.files.add(
-        await http.MultipartFile.fromPath(
-          'file',
-          imageFile.path,
-          contentType: contentType,
-        ),
-      );
+      if (kIsWeb) {
+        // For web, use fromBytes with the file data
+        final bytes = await imageFile.readAsBytes();
+        // Sanitize filename to remove special characters
+        final sanitizedFilename = _sanitizeFilename(imageFile.name, fileExtension);
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'file',
+            bytes,
+            contentType: contentType,
+            filename: sanitizedFilename,
+          ),
+        );
+      } else {
+        // For mobile/desktop, use fromPath
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'file',
+            imageFile.path,
+            contentType: contentType,
+          ),
+        );
+      }
       
       // Send the request
       final streamedResponse = await request.send();
@@ -103,8 +119,27 @@ class ImageService {
     return '$baseUrl/image/$filename';
   }
   
+  /// Sanitizes a filename by removing special characters and spaces
+  static String _sanitizeFilename(String originalFilename, String extension) {
+    // Remove the extension from the original filename
+    final nameWithoutExt = originalFilename.replaceAll(RegExp(r'\.[^.]*$'), '');
+    
+    // Replace special characters and spaces with underscores
+    final sanitized = nameWithoutExt
+        .replaceAll(RegExp(r'[^\w\-_.]'), '_') // Replace non-alphanumeric chars with _
+        .replaceAll(RegExp(r'_+'), '_') // Replace multiple underscores with single _
+        .replaceAll(RegExp(r'^_|_$'), ''); // Remove leading/trailing underscores
+    
+    // Generate a timestamp-based filename to ensure uniqueness
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final finalFilename = '${timestamp}_${sanitized.isNotEmpty ? sanitized : 'image'}.$extension';
+    
+    print('📸 Sanitized filename: "$originalFilename" -> "$finalFilename"');
+    return finalFilename;
+  }
+  
   /// Pick an image from gallery or camera
-  static Future<File?> pickImage({ImageSource source = ImageSource.gallery}) async {
+  static Future<XFile?> pickImage({ImageSource source = ImageSource.gallery}) async {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
@@ -114,10 +149,7 @@ class ImageService {
         imageQuality: 85,
       );
       
-      if (image != null) {
-        return File(image.path);
-      }
-      return null;
+      return image;
     } catch (e) {
       print('💥 Exception in pickImage: $e');
       return null;
@@ -125,7 +157,7 @@ class ImageService {
   }
   
   /// Show image source selection dialog
-  static Future<File?> showImageSourceDialog() async {
+  static Future<XFile?> showImageSourceDialog() async {
     // This will be called from the UI with a context
     // For now, just return null - the UI will handle the dialog
     return null;
