@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
 
-class ImageService {
+class ImageService {//
   static const String baseUrl = 'https://api.buddycount.duckdns.org';
   
   /// Upload an image file to the server
