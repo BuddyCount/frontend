@@ -56,7 +56,7 @@ class GroupProvider with ChangeNotifier {
     
     try {
       final group = _groups.firstWhere((g) => g.id == groupId);
-      final balances = _calculateBalances(group);
+      final balances = calculateBalances(group);
       return balances[userMember.id];
     } catch (e) {
       return null;
@@ -64,7 +64,7 @@ class GroupProvider with ChangeNotifier {
   }
   
   // Calculate balances for a group (moved from GroupDetailScreen)
-  Map<String, double> _calculateBalances(Group group) {
+  Map<String, double> calculateBalances(Group group) {
     final balances = <String, double>{};
     
     // Initialize all balances to 0
@@ -74,15 +74,50 @@ class GroupProvider with ChangeNotifier {
     
     // Calculate balances based on expenses
     for (final expense in group.expenses) {
+      // Convert expense amount to group currency if different
+      double expenseAmountInGroupCurrency = expense.amount;
+      
+      if (expense.currency != group.currency && expense.exchangeRate != null) {
+        // Convert to group currency using exchange rate
+        expenseAmountInGroupCurrency = expense.amount * expense.exchangeRate!;
+        print('💰 Converting ${expense.amount} ${expense.currency} to ${expenseAmountInGroupCurrency} ${group.currency} (rate: ${expense.exchangeRate})');
+      } else if (expense.currency != group.currency && expense.exchangeRate == null) {
+        // No exchange rate provided, use 1:1 (this might not be accurate)
+        print('⚠️ No exchange rate for ${expense.amount} ${expense.currency} to ${group.currency}, using 1:1');
+      }
+      
       final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
-      final splitAmount = expense.amount / expense.splitBetween.length;
       
-      // Payer gets the full amount
-      balances[payer.id] = (balances[payer.id] ?? 0.0) + expense.amount;
+      // Handle multiple payers or single payer
+      if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) {
+        // Multiple payers with custom amounts
+        for (final entry in expense.customPaidBy!.entries) {
+          final payerId = entry.key;
+          final paidAmount = entry.value;
+          balances[payerId] = (balances[payerId] ?? 0.0) + paidAmount;
+        }
+      } else {
+        // Single payer gets the full amount (in group currency)
+        balances[payer.id] = (balances[payer.id] ?? 0.0) + expenseAmountInGroupCurrency;
+      }
       
-      // Each person in split pays their share
-      for (final personId in expense.splitBetween) {
-        balances[personId] = (balances[personId] ?? 0.0) - splitAmount;
+      // Calculate how much each person owes based on custom shares or equal splitting
+      if (expense.customShares != null && expense.customShares!.isNotEmpty) {
+        // Use custom shares for proportional splitting
+        final totalShares = expense.customShares!.values.reduce((a, b) => a + b);
+        
+        for (final personId in expense.splitBetween) {
+          final personShares = expense.customShares![personId] ?? 1.0;
+          final personAmount = (personShares / totalShares) * expenseAmountInGroupCurrency;
+          balances[personId] = (balances[personId] ?? 0.0) - personAmount;
+        }
+      } else {
+        // Equal splitting (original behavior)
+        final splitAmount = expenseAmountInGroupCurrency / expense.splitBetween.length;
+        
+        for (final personId in expense.splitBetween) {
+          balances[personId] = (balances[personId] ?? 0.0) - splitAmount;
+        }
       }
     }
     

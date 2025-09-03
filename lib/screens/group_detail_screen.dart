@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import '../providers/group_provider.dart';
 import '../models/group.dart';
 import '../models/expense.dart';
 import '../models/person.dart';
 import '../services/sync_service.dart';
 import 'add_expense_screen.dart';
+import 'expense_detail_screen.dart';
 import 'package:intl/intl.dart';
 import '../widgets/expense_analytics_widget.dart';
 
@@ -41,6 +43,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         title: Text(widget.group.name),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
+          IconButton(
+            icon: Icon(
+              Icons.share,
+              color: Colors.blue.shade400,
+            ),
+            onPressed: () => _showShareDialog(context),
+            tooltip: 'Share Group',
+          ),
           IconButton(
             icon: Icon(
               Icons.delete_outline,
@@ -82,9 +92,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 const SizedBox(height: 24),
                 _buildBalancesSection(currentGroup),
                 const SizedBox(height: 24),
-                _buildExpenseAnalyticsSection(currentGroup),
-                const SizedBox(height: 24),
                 _buildExpensesSection(context, currentGroup, groupProvider),
+                const SizedBox(height: 24),
+                _buildExpenseAnalyticsSection(currentGroup),
               ],
             ),
           );
@@ -167,9 +177,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             ),
             const SizedBox(height: 16),
             ...balances.entries.map((entry) {
-              final person = group.members.firstWhere((p) => p.id == entry.key);
+              final person = group.members.firstWhere(
+                (p) => p.id == entry.key,
+                orElse: () => group.members.first, // Fallback to first member if not found
+              );
               final balance = entry.value;
               final isPositive = balance > 0;
+              final isZero = balance == 0;
               
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -184,16 +198,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: isPositive ? Colors.green.shade100 : Colors.red.shade100,
+                        color: isZero 
+                          ? Colors.grey.shade100 
+                          : (isPositive ? Colors.green.shade100 : Colors.red.shade100),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: isPositive ? Colors.green.shade300 : Colors.red.shade300,
+                          color: isZero 
+                            ? Colors.grey.shade300 
+                            : (isPositive ? Colors.green.shade300 : Colors.red.shade300),
                         ),
                       ),
                       child: Text(
-                        '${isPositive ? '+' : ''}\$${balance.toStringAsFixed(2)}',
+                        isZero 
+                          ? '\$${balance.toStringAsFixed(2)}'
+                          : '\$${isPositive ? '+' : '-'}${balance.abs().toStringAsFixed(2)}',
                         style: TextStyle(
-                          color: isPositive ? Colors.green.shade700 : Colors.red.shade700,
+                          color: isZero 
+                            ? Colors.grey.shade700 
+                            : (isPositive ? Colors.green.shade700 : Colors.red.shade700),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -295,8 +317,22 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   }
 
   Widget _buildExpenseTile(BuildContext context, Expense expense, Group group, GroupProvider groupProvider) {
-    final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
-    final splitAmount = expense.amount / expense.splitBetween.length;
+    final payer = group.members.firstWhere(
+      (p) => p.id == expense.paidBy || p.name == expense.paidBy,
+      orElse: () => group.members.first, // Fallback to first member if not found
+    );
+    
+    // Calculate split amount based on custom shares or equal splitting
+    double splitAmount;
+    if (expense.customShares != null && expense.customShares!.isNotEmpty) {
+      // Use custom shares for proportional splitting
+      final totalShares = expense.customShares!.values.reduce((a, b) => a + b);
+      // For display purposes, show the average share amount
+      splitAmount = expense.amount / totalShares;
+    } else {
+      // Equal splitting
+      splitAmount = expense.amount / expense.splitBetween.length;
+    }
     
     return Dismissible(
       key: Key(expense.id),
@@ -359,6 +395,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       },
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(vertical: 8.0),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ExpenseDetailScreen(expense: expense),
+            ),
+          );
+        },
         leading: CircleAvatar(
           backgroundColor: Colors.blue.shade100,
           child: Icon(
@@ -374,18 +418,51 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Paid by ${payer.name} • ${DateFormat('MMM dd, yyyy').format(expense.date)}',
+              expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty
+                ? 'Paid by multiple people • ${DateFormat('MMM dd, yyyy').format(expense.date)}'
+                : 'Paid by ${payer.name} • ${DateFormat('MMM dd, yyyy').format(expense.date)}',
               style: TextStyle(fontSize: 14),
             ),
             Text(
               'Split between ${expense.splitBetween.length} people',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
+            // Show multiple payers details if applicable
+            if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                expense.customPaidBy!.entries
+                    .where((entry) => entry.value > 0)
+                    .map((entry) {
+                  final person = group.members.firstWhere(
+                    (p) => p.id == entry.key,
+                    orElse: () => group.members.first, // Fallback to first member if not found
+                  );
+                  return '${person.name}: \$${entry.value.toStringAsFixed(2)}';
+                }).join(', '),
+                style: TextStyle(fontSize: 11, color: Colors.blue.shade600),
+              ),
+            ],
+            // Show images if available
+            if (expense.images != null && expense.images!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.photo, size: 16, color: Colors.grey.shade600),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${expense.images!.length} image${expense.images!.length > 1 ? 's' : ''}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               '\$${expense.amount.toStringAsFixed(2)}',
@@ -395,12 +472,26 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               ),
             ),
             Text(
-              '\$${splitAmount.toStringAsFixed(2)} each',
+              expense.customShares != null && expense.customShares!.isNotEmpty
+                ? 'Shares: ${expense.customShares!.values.map((s) => s.toStringAsFixed(1)).join(', ')}'
+                : '\$${splitAmount.toStringAsFixed(2)} each',
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey.shade600,
               ),
             ),
+            // Show payment info for multiple payers
+            if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) ...[
+              const SizedBox(height: 1),
+              Text(
+                'Multi-pay',
+                style: TextStyle(
+                  fontSize: 9,
+                  color: Colors.blue.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -417,15 +508,41 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     
     // Calculate balances based on expenses
     for (final expense in group.expenses) {
-      final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
-      final splitAmount = expense.amount / expense.splitBetween.length;
+      final payer = group.members.firstWhere(
+        (p) => p.id == expense.paidBy || p.name == expense.paidBy,
+        orElse: () => group.members.first, // Fallback to first member if not found
+      );
       
-      // Payer gets the full amount
-      balances[payer.id] = (balances[payer.id] ?? 0.0) + expense.amount;
+      // Handle multiple payers or single payer
+      if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) {
+        // Multiple payers with custom amounts
+        for (final entry in expense.customPaidBy!.entries) {
+          final payerId = entry.key;
+          final paidAmount = entry.value;
+          balances[payerId] = (balances[payerId] ?? 0.0) + paidAmount;
+        }
+      } else {
+        // Single payer gets the full amount
+        balances[payer.id] = (balances[payer.id] ?? 0.0) + expense.amount;
+      }
       
-      // Each person in split pays their share
-      for (final personId in expense.splitBetween) {
-        balances[personId] = (balances[personId] ?? 0.0) - splitAmount;
+      // Calculate how much each person owes based on custom shares or equal splitting
+      if (expense.customShares != null && expense.customShares!.isNotEmpty) {
+        // Use custom shares for proportional splitting
+        final totalShares = expense.customShares!.values.reduce((a, b) => a + b);
+        
+        for (final personId in expense.splitBetween) {
+          final personShares = expense.customShares![personId] ?? 1.0;
+          final personAmount = (personShares / totalShares) * expense.amount;
+          balances[personId] = (balances[personId] ?? 0.0) - personAmount;
+        }
+      } else {
+        // Equal splitting (original behavior)
+        final splitAmount = expense.amount / expense.splitBetween.length;
+        
+        for (final personId in expense.splitBetween) {
+          balances[personId] = (balances[personId] ?? 0.0) - splitAmount;
+        }
       }
     }
     
@@ -482,6 +599,128 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               foregroundColor: Colors.red,
             ),
             child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showShareDialog(BuildContext context) {
+    final shareLink = widget.group.linkToken != null 
+        ? 'https://buddycount.app/join/${widget.group.linkToken}'
+        : 'No share link available';
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.share,
+              color: Colors.blue.shade400,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            const Text('Share Group'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Share "${widget.group.name}" with others:',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      shareLink,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade800,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: Icon(
+                      Icons.copy,
+                      color: Colors.blue.shade400,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: shareLink));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Link copied to clipboard!'),
+                          backgroundColor: Colors.green,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    tooltip: 'Copy Link',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: Colors.blue.shade600,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Anyone with this link can join your group and see all expenses.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'Close',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
@@ -610,8 +849,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
     return Column(
       children: settlements.map((settlement) {
-        final fromPerson = group.members.firstWhere((p) => p.id == settlement.fromId);
-        final toPerson = group.members.firstWhere((p) => p.id == settlement.toId);
+        final fromPerson = group.members.firstWhere(
+          (p) => p.id == settlement.fromId,
+          orElse: () => group.members.first, // Fallback to first member if not found
+        );
+        final toPerson = group.members.firstWhere(
+          (p) => p.id == settlement.toId,
+          orElse: () => group.members.first, // Fallback to first member if not found
+        );
         
         return Container(
           margin: const EdgeInsets.symmetric(vertical: 4.0),

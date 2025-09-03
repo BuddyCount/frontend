@@ -25,13 +25,21 @@ class ExpenseAdapter extends TypeAdapter<Expense> {
       splitBetween: (fields[5] as List).cast<String>(),
       date: fields[6] as DateTime,
       groupId: fields[7] as String,
+      category: fields[8] as String?,
+      exchangeRate: fields[9] as double?,
+      createdAt: fields[10] as DateTime?,
+      updatedAt: fields[11] as DateTime?,
+      version: fields[12] as int?,
+      customShares: (fields[13] as Map?)?.cast<String, double>(),
+      customPaidBy: (fields[14] as Map?)?.cast<String, double>(),
+      images: (fields[15] as List?)?.cast<String>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, Expense obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -47,7 +55,23 @@ class ExpenseAdapter extends TypeAdapter<Expense> {
       ..writeByte(6)
       ..write(obj.date)
       ..writeByte(7)
-      ..write(obj.groupId);
+      ..write(obj.groupId)
+      ..writeByte(8)
+      ..write(obj.category)
+      ..writeByte(9)
+      ..write(obj.exchangeRate)
+      ..writeByte(10)
+      ..write(obj.createdAt)
+      ..writeByte(11)
+      ..write(obj.updatedAt)
+      ..writeByte(12)
+      ..write(obj.version)
+      ..writeByte(13)
+      ..write(obj.customShares)
+      ..writeByte(14)
+      ..write(obj.customPaidBy)
+      ..writeByte(15)
+      ..write(obj.images);
   }
 
   @override
