@@ -31,9 +31,11 @@ class AuthService {
   static Future<String?> getToken() async {
     // Return cached token if available
     if (_cachedToken != null && _cachedToken!.isNotEmpty) {
+      print('🔐 Using cached token - Length: ${_cachedToken!.length}');
       return _cachedToken;
     }
     
+    print('🔐 No cached token - authenticating...');
     // Authenticate to get a new token
     return await authenticate();
   }
@@ -55,18 +57,22 @@ class AuthService {
         }),
       );
       
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
-        final token = responseData['token'] as String?;
+        final token = responseData['access_token'] as String?;
         
         if (token != null && token.isNotEmpty) {
           // Cache the token and device ID
           await _cacheToken(token, deviceId);
+          print('✅ Authentication successful - Token cached');
           return token;
+        } else {
+          print('❌ Authentication failed - No token in response');
         }
+      } else {
+        print('❌ Authentication failed: ${response.statusCode} - ${response.body}');
       }
       
-      print('Authentication failed: ${response.statusCode} - ${response.body}');
       return null;
     } catch (e) {
       print('Authentication error: $e');
@@ -81,6 +87,9 @@ class AuthService {
       await _tokenBox!.put(_deviceIdKey, deviceId);
       _cachedToken = token;
       _cachedDeviceId = deviceId;
+      print('💾 Token cached successfully - Length: ${token.length}');
+    } else {
+      print('❌ Token box not initialized - cannot cache token');
     }
   }
   

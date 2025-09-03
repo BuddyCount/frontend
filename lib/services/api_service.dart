@@ -29,6 +29,8 @@ class ApiService {
   /// Gets headers with authentication token
   static Future<Map<String, String>> _getAuthHeaders() async {
     final token = await AuthService.getToken();
+    print('🔐 Getting auth headers - Token: ${token != null ? 'Present (${token.substring(0, 20)}...)' : 'NULL'}');
+    
     final headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -36,6 +38,9 @@ class ApiService {
     
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
+      print('🔐 Authorization header set: Bearer ${token.substring(0, 20)}...');
+    } else {
+      print('🔐 No token available - request will be unauthenticated');
     }
     
     return headers;
@@ -356,7 +361,7 @@ class ApiService {
         'amount': amount,
         'paidBy': {
           'repartitionType': 'AMOUNT',
-          'repartition': customPaidBy != null && customPaidBy!.isNotEmpty
+          'repartition': customPaidBy != null && customPaidBy.isNotEmpty
             ? customPaidBy.entries.map((entry) => {
                 'userId': _mapStringIdToInt(entry.key, memberNames),
                 'values': {

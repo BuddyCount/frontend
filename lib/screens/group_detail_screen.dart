@@ -459,39 +459,62 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             ],
           ],
         ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              '\$${expense.amount.toStringAsFixed(2)}',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-            Text(
-              expense.customShares != null && expense.customShares!.isNotEmpty
-                ? 'Shares: ${expense.customShares!.values.map((s) => s.toStringAsFixed(1)).join(', ')}'
-                : '\$${splitAmount.toStringAsFixed(2)} each',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
-            ),
-            // Show payment info for multiple payers
-            if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) ...[
-              const SizedBox(height: 1),
-              Text(
-                'Multi-pay',
-                style: TextStyle(
-                  fontSize: 9,
-                  color: Colors.blue.shade600,
-                  fontWeight: FontWeight.w500,
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '\$${expense.amount.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty ? 14 : 16,
+                  ),
                 ),
+                Text(
+                  expense.customShares != null && expense.customShares!.isNotEmpty
+                    ? 'Shares: ${expense.customShares!.values.map((s) => s.toStringAsFixed(1)).join(', ')}'
+                    : '\$${splitAmount.toStringAsFixed(2)} each',
+                  style: TextStyle(
+                    fontSize: expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty ? 10 : 12,
+                    color: Colors.grey.shade600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                // Show payment info for multiple payers
+                if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) ...[
+                  Text(
+                    'Multi-pay',
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: Colors.blue.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AddExpenseScreen(expenseToEdit: expense),
+                  ),
+                );
+              },
+              icon: Icon(
+                Icons.edit,
+                color: Colors.blue.shade600,
+                size: 20,
               ),
-            ],
+              tooltip: 'Edit expense',
+            ),
           ],
         ),
       ),
