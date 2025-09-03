@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import '../providers/group_provider.dart';
 import '../models/expense.dart';
 import '../services/api_service.dart';
@@ -1578,12 +1579,27 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.file(
-                            image,
-                            width: 100,
-                            height: 100,
-                            fit: BoxFit.cover,
-                          ),
+                          child: kIsWeb 
+                            ? Image.network(
+                                image.path, // On web, XFile.path is a blob URL
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    width: 100,
+                                    height: 100,
+                                    color: Colors.grey.shade300,
+                                    child: const Icon(Icons.error),
+                                  );
+                                },
+                              )
+                            : Image.file(
+                                image,
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.cover,
+                              ),
                         ),
                         Positioned(
                           top: 4,
