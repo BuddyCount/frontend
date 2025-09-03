@@ -81,6 +81,10 @@ class ApiService {
       print('🔍 Final connectivity test response: ${response.statusCode}');
       return response.statusCode < 500;
       
+
+      print('🔍 Connectivity test response: ${response.statusCode}');
+      return response.statusCode < 500; // Any response means we can reach the server.
+
     } catch (e) {
       print('🔍 Connectivity test failed: $e');
       // If it's a DNS issue but you can reach the backend, assume connectivity is OK

@@ -38,7 +38,7 @@ class LocalStorageService {
       final expenses = getExpensesForGroup(group.id);
       // Update the group with its expenses
       final updatedGroup = group.copyWith(expenses: expenses);
-      // Update the group in memory (this doesn't save to storage, just updates the list)
+      // Update the group in memory (this doesn't save to storage, just updates the list).
       final index = groups.indexOf(group);
       if (index != -1) {
         groups[index] = updatedGroup;
