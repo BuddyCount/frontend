@@ -380,17 +380,30 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           ),
         );
         
-        // Delete the expense
-        await groupProvider.removeExpense(expense.id);
-        
-        // Show success message
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Expense "${expense.name}" deleted successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
+        // Delete the expense using sync service for proper online/offline handling
+        try {
+          final syncService = SyncService();
+          await syncService.deleteExpenseOffline(expense.id, context, groupProvider);
+          
+          // Show success message
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Expense "${expense.name}" deleted successfully'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } catch (e) {
+          // Show error message
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error deleting expense: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       },
       child: ListTile(
@@ -459,39 +472,61 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             ],
           ],
         ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              '\$${expense.amount.toStringAsFixed(2)}',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-            Text(
-              expense.customShares != null && expense.customShares!.isNotEmpty
-                ? 'Shares: ${expense.customShares!.values.map((s) => s.toStringAsFixed(1)).join(', ')}'
-                : '\$${splitAmount.toStringAsFixed(2)} each',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
-            ),
-            // Show payment info for multiple payers
-            if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) ...[
-              const SizedBox(height: 1),
-              Text(
-                'Multi-pay',
-                style: TextStyle(
-                  fontSize: 9,
-                  color: Colors.blue.shade600,
-                  fontWeight: FontWeight.w500,
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '\$${expense.amount.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
+                Text(
+                  expense.customShares != null && expense.customShares!.isNotEmpty
+                    ? 'Shares: ${expense.customShares!.values.map((s) => s.toStringAsFixed(1)).join(', ')}'
+                    : '\$${splitAmount.toStringAsFixed(2)} each',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                // Show payment info for multiple payers
+                if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) ...[
+                  const SizedBox(height: 1),
+                  Text(
+                    'Multi-pay',
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Colors.blue.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AddExpenseScreen(expenseToEdit: expense),
+                  ),
+                );
+              },
+              icon: Icon(
+                Icons.edit,
+                color: Colors.blue.shade600,
+                size: 20,
               ),
-            ],
+              tooltip: 'Edit expense',
+            ),
           ],
         ),
       ),
@@ -566,9 +601,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           ),
           TextButton(
             onPressed: () async {
-              Navigator.of(context).pop();
+              // Get provider reference before closing dialog
+              final groupProvider = Provider.of<GroupProvider>(context, listen: false);
               
-              // Note: groupProvider is no longer needed since we use SyncService directly
+              Navigator.of(context).pop();
               
               // Show loading indicator
               ScaffoldMessenger.of(context).showSnackBar(
@@ -578,21 +614,42 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 ),
               );
               
-              // Use sync service to delete the group
-              final syncService = SyncService();
-              await syncService.deleteGroupOffline(widget.group.id, context);
-              
-              // Navigate back to groups overview
-              if (context.mounted) {
-                Navigator.of(context).pop();
+              // Delete group directly from provider and storage
+              try {
+                // Remove from provider immediately
+                groupProvider.removeGroup(widget.group.id);
                 
-                // Show success message
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Group "${widget.group.name}" deleted successfully'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
+                // Navigate back to groups overview
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                  
+                  // Show success message
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Group "${widget.group.name}" deleted successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+                
+                // Try to delete from API in background (don't wait for it)
+                final syncService = SyncService();
+                syncService.deleteGroupOffline(widget.group.id, context, groupProvider).catchError((e) {
+                  print('Background API deletion failed: $e');
+                  // Don't show error to user since local deletion succeeded
+                });
+                
+              } catch (e) {
+                print('Error deleting group: $e');
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error deleting group: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             style: TextButton.styleFrom(
