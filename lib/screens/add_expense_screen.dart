@@ -62,11 +62,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         
         // Auto-fill currency and exchange rate based on group
         _selectedCurrency = groupProvider.currentGroup!.currency;
-        if (_selectedCurrency != groupProvider.currentGroup!.currency) {
-          // Different currency, set exchange rate to 1.0 as default
-          _exchangeRateController.text = '1.0';
-          print('Different currency detected, set default exchange rate to 1.0');
-        }
+        final exchangeRate = _getExchangeRatePlaceholder(_selectedCurrency, groupProvider.currentGroup!.currency);
+        _exchangeRateController.text = exchangeRate;
+        print('Set exchange rate to: $exchangeRate for ${_selectedCurrency} -> ${groupProvider.currentGroup!.currency}');
         
         for (var person in groupProvider.currentGroup!.members) {
           _selectedMembers.add(person.id);
@@ -429,11 +427,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       
           // Auto-update exchange rate when currency changes
           final currentGroup = Provider.of<GroupProvider>(context, listen: false).currentGroup;
-          if (currentGroup != null && value != currentGroup.currency) {
-            // Different currency, set exchange rate to 1.0 as default
-            _exchangeRateController.text = '1.0';
+          if (currentGroup != null) {
+            final exchangeRate = _getExchangeRatePlaceholder(value, currentGroup.currency);
+            _exchangeRateController.text = exchangeRate;
           } else {
-            // Same currency, set exchange rate to 1.0
             _exchangeRateController.text = '1.0';
           }
         });
@@ -530,35 +527,45 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               const SizedBox(width: 12),
               Expanded(
                 flex: 2,
-                child: TextFormField(
-                  controller: _exchangeRateController,
-                  decoration: InputDecoration(
-                    labelText: 'Exchange Rate',
-                    prefixIcon: Icon(Icons.trending_up, color: Colors.orange.shade400),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(15),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(15),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(15),
-                      borderSide: BorderSide(color: Colors.orange.shade400, width: 2),
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter exchange rate';
-                    }
-                    if (double.tryParse(value) == null) {
-                      return 'Please enter a valid number';
-                    }
-                    return null;
+                child: Consumer<GroupProvider>(
+                  builder: (context, groupProvider, child) {
+                    final currentGroup = groupProvider.currentGroup;
+                    final hintText = currentGroup != null 
+                        ? '1 ${_selectedCurrency} = ? ${currentGroup.currency}'
+                        : 'Exchange Rate';
+                    
+                    return TextFormField(
+                      controller: _exchangeRateController,
+                      decoration: InputDecoration(
+                        labelText: 'Exchange Rate',
+                        hintText: hintText,
+                        prefixIcon: Icon(Icons.trending_up, color: Colors.orange.shade400),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(15),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(15),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(15),
+                          borderSide: BorderSide(color: Colors.orange.shade400, width: 2),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter exchange rate';
+                        }
+                        if (double.tryParse(value) == null) {
+                          return 'Please enter a valid number';
+                        }
+                        return null;
+                      },
+                    );
                   },
                 ),
               ),
@@ -1378,19 +1385,17 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         images: _uploadedImageFilenames.isNotEmpty ? _uploadedImageFilenames : null,
       );
 
-      // Extract split information from paidFor field
+      // Extract split information from selected members, excluding the payer
       List<String> splitBetween = [];
-      if (expenseData['paidFor'] != null && expenseData['paidFor']['repartition'] != null) {
-        final repartition = expenseData['paidFor']['repartition'] as List;
-        for (final item in repartition) {
-          final userId = item['userId'].toString();
-          // Find member name by ID
-          final member = currentGroup.members.firstWhere(
-            (m) => m.id == userId,
-            orElse: () => currentGroup.members.first,
-          );
-          splitBetween.add(member.name);
-        }
+      for (final memberId in _selectedMembers) {
+        // Skip the payer - they don't split with themselves
+        if (memberId == _selectedPayer) continue;
+        
+        final member = currentGroup.members.firstWhere(
+          (m) => m.id == memberId,
+          orElse: () => currentGroup.members.first,
+        );
+        splitBetween.add(member.name);
       }
       
       // Create expense locally from API response
@@ -1435,14 +1440,27 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       // Fallback to offline creation
       try {
         // Create expense locally with generated ID
-    final expense = Expense(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+        // Extract split information from selected members, excluding the payer
+        List<String> splitBetween = [];
+        for (final memberId in _selectedMembers) {
+          // Skip the payer - they don't split with themselves
+          if (memberId == _selectedPayer) continue;
+          
+          final member = currentGroup.members.firstWhere(
+            (m) => m.id == memberId,
+            orElse: () => currentGroup.members.first,
+          );
+          splitBetween.add(member.name);
+        }
+        
+        final expense = Expense(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
           name: _nameController.text,
-      amount: double.parse(_amountController.text),
-      currency: _selectedCurrency,
+          amount: double.parse(_amountController.text),
+          currency: _selectedCurrency,
           paidBy: _selectedPayer,
-          splitBetween: _selectedMembers,
-      date: _selectedDate,
+          splitBetween: splitBetween,
+          date: _selectedDate,
           groupId: currentGroup.id,
           category: _selectedCategory,
           exchangeRate: double.parse(_exchangeRateController.text),
@@ -1678,5 +1696,48 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       _selectedMembers.clear();
       _customShares.clear();
     });
+  }
+
+  String _getExchangeRatePlaceholder(String selectedCurrency, String groupCurrency) {
+    // If same currency, return 1.0
+    if (selectedCurrency == groupCurrency) {
+      return '1.0';
+    }
+    
+    // Exchange rates based on the provided values
+    // 1 CHF = 1.07 Euro, 1 Euro = 0.94 CHF
+    // 1 USD = 0.8 CHF, 1 USD = 1.24 USD (this seems wrong, assuming 1 USD = 1.24 CHF)
+    // 1 USD = 0.86 Euro, 1 Euro = 1.16 USD
+    
+    if (groupCurrency == 'CHF') {
+      switch (selectedCurrency) {
+        case 'EUR':
+          return '1.07'; // 1 CHF = 1.07 EUR
+        case 'USD':
+          return '1.24'; // 1 CHF = 1.24 USD (assuming the 1.24 USD was meant to be CHF to USD)
+        default:
+          return '1.0';
+      }
+    } else if (groupCurrency == 'EUR') {
+      switch (selectedCurrency) {
+        case 'CHF':
+          return '0.94'; // 1 EUR = 0.94 CHF
+        case 'USD':
+          return '1.16'; // 1 EUR = 1.16 USD
+        default:
+          return '1.0';
+      }
+    } else if (groupCurrency == 'USD') {
+      switch (selectedCurrency) {
+        case 'CHF':
+          return '0.80'; // 1 USD = 0.80 CHF
+        case 'EUR':
+          return '0.86'; // 1 USD = 0.86 EUR
+        default:
+          return '1.0';
+      }
+    }
+    
+    return '1.0';
   }
 } 

@@ -554,17 +554,27 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         // Use custom shares for proportional splitting
         final totalShares = expense.customShares!.values.reduce((a, b) => a + b);
         
-        for (final personId in expense.splitBetween) {
-          final personShares = expense.customShares![personId] ?? 1.0;
+        for (final personName in expense.splitBetween) {
+          // Find the person by name to get their ID
+          final person = group.members.firstWhere(
+            (p) => p.name == personName,
+            orElse: () => group.members.first,
+          );
+          final personShares = expense.customShares![person.id] ?? 1.0;
           final personAmount = (personShares / totalShares) * expense.amount;
-          balances[personId] = (balances[personId] ?? 0.0) - personAmount;
+          balances[person.id] = (balances[person.id] ?? 0.0) - personAmount;
         }
       } else {
         // Equal splitting (original behavior)
         final splitAmount = expense.amount / expense.splitBetween.length;
         
-        for (final personId in expense.splitBetween) {
-          balances[personId] = (balances[personId] ?? 0.0) - splitAmount;
+        for (final personName in expense.splitBetween) {
+          // Find the person by name to get their ID
+          final person = group.members.firstWhere(
+            (p) => p.name == personName,
+            orElse: () => group.members.first,
+          );
+          balances[person.id] = (balances[person.id] ?? 0.0) - splitAmount;
         }
       }
     }
@@ -814,7 +824,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     if (_selectedMember != null) {
       filteredExpenses = filteredExpenses.where((expense) => 
         expense.paidBy == _selectedMember!.id || 
-        expense.splitBetween.contains(_selectedMember!.id)
+        expense.splitBetween.contains(_selectedMember!.name)
       ).toList();
     }
     
