@@ -45,6 +45,29 @@ class ApiService {
     
     return headers;
   }
+
+  /// Makes an HTTP request with automatic token refresh on 401 errors
+  static Future<http.Response> _makeRequestWithTokenRefresh(
+    Future<http.Response> Function() requestFunction,
+  ) async {
+    // First attempt
+    var response = await requestFunction();
+    
+    // If we get a 401, try to refresh the token and retry once
+    if (response.statusCode == 401) {
+      print('🔄 Got 401 error, attempting token refresh...');
+      final newToken = await AuthService.refreshToken();
+      
+      if (newToken != null) {
+        print('✅ Token refreshed successfully, retrying request...');
+        response = await requestFunction();
+      } else {
+        print('❌ Token refresh failed');
+      }
+    }
+    
+    return response;
+  }
   
   // Test connectivity to the backend
   static Future<bool> testConnectivity() async {
@@ -84,10 +107,6 @@ class ApiService {
       ).timeout(const Duration(seconds: 10));
       
       print('🔍 Final connectivity test response: ${response.statusCode}');
-      return response.statusCode < 500;
-      
-
-      print('🔍 Connectivity test response: ${response.statusCode}');
       return response.statusCode < 500; // Any response means we can reach the server.
 
     } catch (e) {
@@ -599,6 +618,97 @@ class ApiService {
     } catch (e) {
       print('💥 Exception in createExpense: $e');
       throw Exception('Error creating expense: $e');
+    }
+  }
+
+  // Get expense predictions for a group
+  static Future<List<double>> getExpensePredictions({
+    required String groupId,
+    required DateTime startDate,
+    required int predictionLength,
+  }) async {
+    try {
+      print('🔮 Fetching expense predictions for group: $groupId');
+      print('📅 Start date: $startDate');
+      print('📏 Prediction length: $predictionLength days');
+      
+      // Debug: Check if there are expenses in the group
+      print('🔍 Checking group expenses for prediction context...');
+      try {
+        final groupResponse = await _makeRequestWithTokenRefresh(() async {
+          final headers = await _getAuthHeaders();
+          return await http.get(
+            Uri.parse('$baseUrl/group/$groupId?withExpenses=true'),
+            headers: headers,
+          );
+        });
+        
+        if (groupResponse.statusCode == 200) {
+          final groupData = jsonDecode(groupResponse.body);
+          final expenses = groupData['expenses'] as List? ?? [];
+          print('🔍 Group has ${expenses.length} expenses');
+          if (expenses.isNotEmpty) {
+            print('🔍 First expense: ${expenses.first}');
+            print('🔍 Last expense: ${expenses.last}');
+          }
+        }
+      } catch (e) {
+        print('❌ Failed to check group expenses: $e');
+      }
+      
+      // Format start date as ISO 8601 string
+      final startDateString = startDate.toIso8601String();
+      final requestUrl = '$baseUrl/group/$groupId/predict?startDate=$startDateString&predictionLength=$predictionLength';
+      
+      print('🌐 Full request URL: $requestUrl');
+      print('📅 Formatted start date: $startDateString');
+      
+      final response = await _makeRequestWithTokenRefresh(() async {
+        final headers = await _getAuthHeaders();
+        print('📤 Request headers: $headers');
+        return await http.get(
+          Uri.parse(requestUrl),
+          headers: headers,
+        ).timeout(
+          const Duration(seconds: 15),
+          onTimeout: () {
+            throw Exception('Prediction request timed out after 15 seconds');
+          },
+        );
+      });
+      
+      print('📡 Predictions Response: Status ${response.statusCode}');
+      print('📄 Response headers: ${response.headers}');
+      print('📄 Response body length: ${response.body.length}');
+      print('📄 Full response body: ${response.body}');
+      
+      // Try to parse as JSON to see the structure
+      try {
+        final jsonResponse = jsonDecode(response.body);
+        print('📄 Parsed JSON response: $jsonResponse');
+        print('📄 JSON response type: ${jsonResponse.runtimeType}');
+        if (jsonResponse is List) {
+          print('📄 Array length: ${jsonResponse.length}');
+        }
+      } catch (e) {
+        print('❌ Failed to parse response as JSON: $e');
+      }
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> predictionsData = jsonDecode(response.body);
+        final List<double> predictions = predictionsData.cast<double>();
+        print('✅ Successfully fetched ${predictions.length} predictions');
+        return predictions;
+      } else if (response.statusCode == 400) {
+        print('❌ Bad Request - Prediction length may be invalid');
+        throw Exception('Invalid prediction parameters: ${response.body}');
+      } else {
+        print('❌ API Error: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to get predictions: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('💥 Exception in getExpensePredictions: $e');
+      throw Exception('Error getting expense predictions: $e');
     }
   }
 }

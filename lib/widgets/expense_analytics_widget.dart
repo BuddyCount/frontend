@@ -3,6 +3,7 @@ import 'dart:math';
 import '../models/group.dart';
 import '../models/expense.dart';
 import '../models/person.dart';
+import '../services/api_service.dart';
 
 class ExpenseAnalyticsWidget extends StatefulWidget {
   final Group group;
@@ -20,6 +21,13 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
   Person? _selectedMember;
   String _selectedTimeRange = '30d'; // 7d, 30d, 90d, 1y, all
   bool _showCumulative = false;
+  
+  // Prediction-related state
+  bool _showPredictions = false;
+  DateTime _predictionStartDate = DateTime.now().subtract(const Duration(days: 30));
+  int _predictionLength = 7;
+  List<double> _predictions = [];
+  bool _isLoadingPredictions = false;
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +52,14 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
                   ),
                 ),
                 IconButton(
+                  icon: Icon(
+                    _showPredictions ? Icons.visibility_off : Icons.trending_up,
+                    color: _showPredictions ? Colors.blue : null,
+                  ),
+                  onPressed: _togglePredictions,
+                  tooltip: _showPredictions ? 'Hide Predictions' : 'Show Predictions',
+                ),
+                IconButton(
                   icon: const Icon(Icons.filter_list),
                   onPressed: _showFilterDialog,
                   tooltip: 'Filter Options',
@@ -55,6 +71,9 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
             // Filter summary
             _buildFilterSummary(),
             const SizedBox(height: 16),
+            
+            // Prediction controls
+            if (_showPredictions) _buildPredictionControls(),
             
             // Chart
             if (chartData.isNotEmpty) ...[
@@ -116,6 +135,132 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPredictionControls() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.trending_up, color: Colors.blue.shade700, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Prediction Settings',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.blue.shade700,
+                ),
+              ),
+              const Spacer(),
+              if (_isLoadingPredictions)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Start Date',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    InkWell(
+                      onTap: _selectPredictionStartDate,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.calendar_today, size: 16, color: Colors.grey.shade600),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${_predictionStartDate.day}/${_predictionStartDate.month}/${_predictionStartDate.year}',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Prediction Length (days)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    DropdownButtonFormField<int>(
+                      value: _predictionLength,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      items: [3, 5, 7, 10, 14, 21, 30].map((days) {
+                        return DropdownMenuItem(
+                          value: days,
+                          child: Text('$days days'),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _predictionLength = value;
+                          });
+                          _updatePredictionSettings();
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (_predictions.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Predicted ${_predictions.length} days ahead',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.green.shade700,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -468,14 +613,21 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
   }
 
   List<ChartDataPoint> _prepareChartData(List<Expense> expenses) {
-    if (expenses.isEmpty) return [];
-
     final Map<DateTime, double> dailyTotals = {};
     
     // Group expenses by date
     for (final expense in expenses) {
       final date = DateTime(expense.date.year, expense.date.month, expense.date.day);
       dailyTotals[date] = (dailyTotals[date] ?? 0) + expense.amount;
+    }
+    
+    // Add predictions if enabled
+    if (_showPredictions && _predictions.isNotEmpty) {
+      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      for (int i = 0; i < _predictions.length; i++) {
+        final predictionDate = tomorrow.add(Duration(days: i));
+        dailyTotals[predictionDate] = _predictions[i];
+      }
     }
     
     // Convert to chart data points
@@ -486,15 +638,23 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
       double cumulative = 0;
       for (final date in sortedDates) {
         cumulative += dailyTotals[date]!;
-        chartData.add(ChartDataPoint(date, cumulative));
+        chartData.add(ChartDataPoint(date, cumulative, isPrediction: _isPredictionDate(date)));
       }
     } else {
       for (final date in sortedDates) {
-        chartData.add(ChartDataPoint(date, dailyTotals[date]!));
+        chartData.add(ChartDataPoint(date, dailyTotals[date]!, isPrediction: _isPredictionDate(date)));
       }
     }
     
     return chartData;
+  }
+  
+  bool _isPredictionDate(DateTime date) {
+    if (!_showPredictions || _predictions.isEmpty) return false;
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    final lastPredictionDate = tomorrow.add(Duration(days: _predictions.length - 1));
+    return date.isAfter(DateTime.now()) && 
+           (date.isAtSameMomentAs(tomorrow) || date.isBefore(lastPredictionDate) || date.isAtSameMomentAs(lastPredictionDate));
   }
 
   double _calculateAveragePerDay(List<Expense> expenses) {
@@ -517,13 +677,89 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     
     return lastDate.difference(firstDate).inDays + 1;
   }
+
+  Future<void> _fetchPredictions() async {
+    if (_isLoadingPredictions) return;
+    
+    setState(() {
+      _isLoadingPredictions = true;
+    });
+    
+    try {
+      final predictions = await ApiService.getExpensePredictions(
+        groupId: widget.group.id,
+        startDate: _predictionStartDate,
+        predictionLength: _predictionLength,
+      );
+      
+      setState(() {
+        _predictions = predictions;
+        _isLoadingPredictions = false;
+      });
+      
+      print('✅ Successfully loaded ${predictions.length} predictions');
+    } catch (e) {
+      setState(() {
+        _isLoadingPredictions = false;
+      });
+      
+      print('❌ Error fetching predictions: $e');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load predictions: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+  
+  void _togglePredictions() {
+    setState(() {
+      _showPredictions = !_showPredictions;
+    });
+    
+    if (_showPredictions && _predictions.isEmpty) {
+      _fetchPredictions();
+    }
+  }
+  
+  void _updatePredictionSettings() {
+    setState(() {
+      _predictions.clear(); // Clear old predictions
+    });
+    
+    if (_showPredictions) {
+      _fetchPredictions();
+    }
+  }
+  
+  Future<void> _selectPredictionStartDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _predictionStartDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now(),
+    );
+    
+    if (picked != null && picked != _predictionStartDate) {
+      setState(() {
+        _predictionStartDate = picked;
+      });
+      _updatePredictionSettings();
+    }
+  }
 }
 
 class ChartDataPoint {
   final DateTime date;
   final double value;
+  final bool isPrediction;
   
-  ChartDataPoint(this.date, this.value);
+  ChartDataPoint(this.date, this.value, {this.isPrediction = false});
 }
 
 class ExpenseChartPainter extends CustomPainter {
@@ -550,6 +786,10 @@ class ExpenseChartPainter extends CustomPainter {
       ..color = Theme.of(context).primaryColor.withValues(alpha: 0.1)
       ..style = PaintingStyle.fill;
 
+    final predictionFillPaint = Paint()
+      ..color = Colors.orange.withValues(alpha: 0.1)
+      ..style = PaintingStyle.fill;
+
     final gridPaint = Paint()
       ..color = Colors.grey.shade300
       ..strokeWidth = 0.5
@@ -559,9 +799,6 @@ class ExpenseChartPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.right,
     );
-
-    final path = Path();
-    final fillPath = Path();
 
     final width = size.width;
     final height = size.height;
@@ -580,7 +817,7 @@ class ExpenseChartPainter extends CustomPainter {
     // Safety check for zero date range
     if (dateRange == 0) return;
 
-        // Calculate Y-axis labels
+    // Calculate Y-axis labels
     final yLabels = _calculateYLabels(minValue, maxValue);
     final yLabelWidth = 40.0; // Reduced space for Y-axis labels
     final chartWidth = width - yLabelWidth;
@@ -615,36 +852,92 @@ class ExpenseChartPainter extends CustomPainter {
       );
     }
 
-    // Draw the line chart
-    for (int i = 0; i < chartData.length; i++) {
-      final point = chartData[i];
-      final x = yLabelWidth + (point.date.difference(minDate).inMilliseconds / dateRange) * chartWidth;
-      final y = chartHeight - ((point.value - minValue) / valueRange) * chartHeight;
-      
-      // Skip if coordinates are NaN or invalid
-      if (x.isNaN || x.isInfinite || y.isNaN || y.isInfinite) continue;
-      
-      if (i == 0) {
-        path.moveTo(x, y);
-        fillPath.moveTo(x, chartHeight);
-        fillPath.lineTo(x, y);
+    // Separate historical data from predictions
+    final historicalData = <ChartDataPoint>[];
+    final predictionData = <ChartDataPoint>[];
+    
+    for (final point in chartData) {
+      if (point.isPrediction) {
+        predictionData.add(point);
       } else {
-        path.lineTo(x, y);
-        fillPath.lineTo(x, y);
+        historicalData.add(point);
       }
     }
-
-    // Complete the fill path
-    fillPath.lineTo(width, chartHeight);
-    fillPath.close();
-
-    // Draw fill and line
-    canvas.drawPath(fillPath, fillPaint);
-    canvas.drawPath(path, paint);
+    
+    // Draw historical data
+    if (historicalData.isNotEmpty) {
+      final histPath = Path();
+      final histFillPath = Path();
+      
+      for (int i = 0; i < historicalData.length; i++) {
+        final point = historicalData[i];
+        final x = yLabelWidth + (point.date.difference(minDate).inMilliseconds / dateRange) * chartWidth;
+        final y = chartHeight - ((point.value - minValue) / valueRange) * chartHeight;
+        
+        if (x.isNaN || x.isInfinite || y.isNaN || y.isInfinite) continue;
+        
+        if (i == 0) {
+          histPath.moveTo(x, y);
+          histFillPath.moveTo(x, chartHeight);
+          histFillPath.lineTo(x, y);
+        } else {
+          histPath.lineTo(x, y);
+          histFillPath.lineTo(x, y);
+        }
+      }
+      
+      // Complete the fill path
+      histFillPath.lineTo(width, chartHeight);
+      histFillPath.close();
+      
+      // Draw historical data
+      canvas.drawPath(histFillPath, fillPaint);
+      canvas.drawPath(histPath, paint);
+    }
+    
+    // Draw predictions
+    if (predictionData.isNotEmpty) {
+      final predPath = Path();
+      final predFillPath = Path();
+      
+      for (int i = 0; i < predictionData.length; i++) {
+        final point = predictionData[i];
+        final x = yLabelWidth + (point.date.difference(minDate).inMilliseconds / dateRange) * chartWidth;
+        final y = chartHeight - ((point.value - minValue) / valueRange) * chartHeight;
+        
+        if (x.isNaN || x.isInfinite || y.isNaN || y.isInfinite) continue;
+        
+        if (i == 0) {
+          predPath.moveTo(x, y);
+          predFillPath.moveTo(x, chartHeight);
+          predFillPath.lineTo(x, y);
+        } else {
+          predPath.lineTo(x, y);
+          predFillPath.lineTo(x, y);
+        }
+      }
+      
+      // Complete the fill path
+      predFillPath.lineTo(width, chartHeight);
+      predFillPath.close();
+      
+      // Draw predictions with dashed line
+      final dashPaint = Paint()
+        ..color = Colors.orange
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke;
+      
+      canvas.drawPath(predFillPath, predictionFillPaint);
+      canvas.drawPath(predPath, dashPaint);
+    }
 
     // Draw data points
     final pointPaint = Paint()
       ..color = Theme.of(context).primaryColor
+      ..style = PaintingStyle.fill;
+
+    final predictionPointPaint = Paint()
+      ..color = Colors.orange
       ..style = PaintingStyle.fill;
 
     for (final point in chartData) {
@@ -654,7 +947,9 @@ class ExpenseChartPainter extends CustomPainter {
       // Skip if coordinates are NaN or invalid
       if (x.isNaN || x.isInfinite || y.isNaN || y.isInfinite) continue;
       
-      canvas.drawCircle(Offset(x, y), 3, pointPaint);
+      // Use different colors for predictions
+      final pointPaintToUse = point.isPrediction ? predictionPointPaint : pointPaint;
+      canvas.drawCircle(Offset(x, y), 3, pointPaintToUse);
     }
 
     // Draw Y-axis line

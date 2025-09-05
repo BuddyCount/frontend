@@ -1,0 +1,211 @@
+name: Build Flutter Web App (Advanced)
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+        - release
+        - profile
+        - debug
+      web_renderer:
+        description: 'Web renderer'
+        required: true
+        default: 'html'
+        type: choice
+        options:
+        - html
+        - canvaskit
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.35.2'
+        channel: 'stable'
+        cache: true
+    
+    - name: Setup Node.js (for web dependencies)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        echo "Installing Flutter dependencies..."
+        flutter pub get
+        
+        echo "Installing web dependencies if any..."
+        if [ -f "web/package.json" ]; then
+          cd web && npm install && cd ..
+        fi
+    
+    - name: Verify Flutter installation
+      run: flutter doctor -v
+    
+    - name: Run Flutter analyze
+      run: flutter analyze --no-fatal-infos
+    
+    - name: Run tests
+      run: flutter test --reporter=expanded
+    
+    - name: Build Flutter Web App
+      run: |
+        echo "Building Flutter web app..."
+        echo "Build mode: ${{ github.event.inputs.build_mode || 'release' }}"
+        echo "Web renderer: ${{ github.event.inputs.web_renderer || 'html' }}"
+        
+        flutter build web \
+          --${{ github.event.inputs.build_mode || 'release' }} \
+          --web-renderer ${{ github.event.inputs.web_renderer || 'html' }} \
+          --source-maps \
+          --pwa-strategy offline-first
+        
+        echo "Build completed successfully!"
+        echo "Build output directory: build/web"
+        
+        # List the contents of the build directory
+        echo "Build directory contents:"
+        ls -la build/web/
+        
+        # Show the size of the build
+        echo "Build size:"
+        du -sh build/web/
+        
+        # Show main files
+        echo "Main files:"
+        ls -la build/web/*.js build/web/*.html build/web/*.json 2>/dev/null || echo "No main files found"
+    
+    - name: Test web build locally
+      run: |
+        echo "Testing web build..."
+        cd build/web
+        
+        # Check if index.html exists and is valid
+        if [ -f "index.html" ]; then
+          echo "✅ index.html found"
+          echo "File size: $(wc -c < index.html) bytes"
+        else
+          echo "❌ index.html not found"
+          exit 1
+        fi
+        
+        # Check if main.dart.js exists
+        if [ -f "main.dart.js" ]; then
+          echo "✅ main.dart.js found"
+          echo "File size: $(wc -c < main.dart.js) bytes"
+        else
+          echo "❌ main.dart.js not found"
+          exit 1
+        fi
+        
+        # Check if flutter.js exists
+        if [ -f "flutter.js" ]; then
+          echo "✅ flutter.js found"
+          echo "File size: $(wc -c < flutter.js) bytes"
+        else
+          echo "❌ flutter.js not found"
+          exit 1
+        fi
+        
+        echo "✅ Web build validation passed"
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: flutter-web-build-${{ github.event.inputs.build_mode || 'release' }}-${{ github.event.inputs.web_renderer || 'html' }}
+        path: build/web/
+        retention-days: 30
+    
+    - name: Create deployment package
+      run: |
+        echo "Creating deployment package..."
+        
+        # Create a deployment package with additional files
+        mkdir -p deployment-package
+        
+        # Copy web build
+        cp -r build/web/* deployment-package/
+        
+        # Create a simple README for deployment
+        cat > deployment-package/README.md << 'EOF'
+        # BuddyCount Web App
+        
+        This is the built Flutter web application for BuddyCount.
+        
+        ## Deployment Instructions
+        
+        1. Upload all files in this directory to your web server
+        2. Configure your web server to serve `index.html` for all routes (SPA routing)
+        3. Ensure HTTPS is enabled for PWA functionality
+        4. Set proper MIME types for `.js` files
+        
+        ## Files
+        
+        - `index.html` - Main entry point
+        - `main.dart.js` - Flutter web app bundle
+        - `flutter.js` - Flutter web engine
+        - `assets/` - App assets and resources
+        - `icons/` - PWA icons
+        
+        ## Build Information
+        
+        - Build Date: $(date)
+        - Flutter Version: $(flutter --version | head -n 1)
+        - Build Mode: ${{ github.event.inputs.build_mode || 'release' }}
+        - Web Renderer: ${{ github.event.inputs.web_renderer || 'html' }}
+        EOF
+        
+        # Create deployment package
+        tar -czf flutter-web-deployment.tar.gz -C deployment-package .
+        
+        echo "Deployment package created: flutter-web-deployment.tar.gz"
+        echo "Package size: $(du -sh flutter-web-deployment.tar.gz | cut -f1)"
+    
+    - name: Upload deployment package
+      uses: actions/upload-artifact@v4
+      with:
+        name: flutter-web-deployment-package
+        path: flutter-web-deployment.tar.gz
+        retention-days: 30
+    
+    - name: Build summary
+      run: |
+        echo "=== Build Summary ==="
+        echo "✅ Flutter web app built successfully"
+        echo "📁 Build artifacts uploaded to GitHub Actions"
+        echo "🌐 Web app is ready for deployment"
+        echo ""
+        echo "Build details:"
+        echo "- Flutter version: $(flutter --version | head -n 1)"
+        echo "- Build mode: ${{ github.event.inputs.build_mode || 'release' }}"
+        echo "- Web renderer: ${{ github.event.inputs.web_renderer || 'html' }}"
+        echo "- Build directory: build/web/"
+        echo "- Deployment package: flutter-web-deployment.tar.gz"
+        echo ""
+        echo "Artifacts available:"
+        echo "1. flutter-web-build-* - Raw build files"
+        echo "2. flutter-web-deployment-package - Ready-to-deploy package"
+        echo ""
+        echo "To deploy:"
+        echo "1. Download the deployment package from this workflow run"
+        echo "2. Extract the tar.gz file"
+        echo "3. Upload the contents to your web server"
+        echo "4. Configure your web server to serve index.html for all routes"
