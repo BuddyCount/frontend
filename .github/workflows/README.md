@@ -32,7 +32,6 @@ This directory contains GitHub Actions workflows for the BuddyCount Flutter fron
 - **Purpose**: Comprehensive web build with testing and deployment packages
 - **Features**:
   - Multiple build modes (release, profile, debug)
-  - Multiple web renderers (html, canvaskit)
   - Flutter analyze and tests
   - Build validation
   - Deployment package creation
@@ -59,7 +58,7 @@ This directory contains GitHub Actions workflows for the BuddyCount Flutter fron
 1. Go to the "Actions" tab in your GitHub repository
 2. Select the workflow you want to run
 3. Click "Run workflow"
-4. Choose the branch and options (for advanced workflow)
+4. Choose the branch and build mode (for advanced workflow)
 5. Click "Run workflow"
 
 ### Downloading Build Artifacts
@@ -117,6 +116,6 @@ location ~* \.js$ {
 - Ensure HTTPS is enabled for PWA features
 
 ### Performance
-- Use the `html` web renderer for better compatibility
-- Use the `canvaskit` web renderer for better performance
-- Consider using the `profile` build mode for testing
+- Use the `release` build mode for production
+- Use the `profile` build mode for testing performance
+- Use the `debug` build mode for development

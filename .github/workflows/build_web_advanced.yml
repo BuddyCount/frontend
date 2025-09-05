@@ -17,14 +17,6 @@ on:
         - release
         - profile
         - debug
-      web_renderer:
-        description: 'Web renderer'
-        required: true
-        default: 'html'
-        type: choice
-        options:
-        - html
-        - canvaskit
 
 jobs:
   build-web:
@@ -41,21 +33,10 @@ jobs:
         channel: 'stable'
         cache: true
     
-    - name: Setup Node.js (for web dependencies)
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-    
     - name: Install dependencies
       run: |
         echo "Installing Flutter dependencies..."
         flutter pub get
-        
-        echo "Installing web dependencies if any..."
-        if [ -f "web/package.json" ]; then
-          cd web && npm install && cd ..
-        fi
     
     - name: Verify Flutter installation
       run: flutter doctor -v
@@ -70,11 +51,9 @@ jobs:
       run: |
         echo "Building Flutter web app..."
         echo "Build mode: ${{ github.event.inputs.build_mode || 'release' }}"
-        echo "Web renderer: ${{ github.event.inputs.web_renderer || 'html' }}"
         
         flutter build web \
           --${{ github.event.inputs.build_mode || 'release' }} \
-          --web-renderer ${{ github.event.inputs.web_renderer || 'html' }} \
           --source-maps \
           --pwa-strategy offline-first
         
@@ -130,7 +109,7 @@ jobs:
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: flutter-web-build-${{ github.event.inputs.build_mode || 'release' }}-${{ github.event.inputs.web_renderer || 'html' }}
+        name: flutter-web-build-${{ github.event.inputs.build_mode || 'release' }}
         path: build/web/
         retention-days: 30
     
@@ -196,7 +175,6 @@ jobs:
         echo "Build details:"
         echo "- Flutter version: $(flutter --version | head -n 1)"
         echo "- Build mode: ${{ github.event.inputs.build_mode || 'release' }}"
-        echo "- Web renderer: ${{ github.event.inputs.web_renderer || 'html' }}"
         echo "- Build directory: build/web/"
         echo "- Deployment package: flutter-web-deployment.tar.gz"
         echo ""
