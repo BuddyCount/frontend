@@ -26,10 +26,6 @@ A modern, offline-first Flutter application for managing shared expenses and bud
 - **Error Handling**: Comprehensive error handling and user feedback
 - **Hot Reload Support**: Full support for Flutter hot reload and restart
 
-## 📱 Screenshots
-
-*Screenshots will be added here once the app is deployed*
-
 ## 🛠️ Tech Stack
 
 - **Framework**: Flutter 3.35.2
@@ -39,22 +35,6 @@ A modern, offline-first Flutter application for managing shared expenses and bud
 - **UI Framework**: Material Design 3
 - **Platforms**: iOS, Android, Web (planned)
 
-## 🏷️ Status Badges
-
-The project automatically generates status badges for build and test status:
-
-![Tests](https://github.com/your-username/buddycount-frontend/blob/main/badges/test-status.svg)
-![Build](https://github.com/your-username/buddycount-frontend/blob/main/badges/build-status.svg)
-
-**Badge Types:**
-- **Tests**: Shows current test status (passing/failing)
-- **Build**: Shows current build status (passing/failing)
-
-**Badge Colors:**
-- 🟢 **Green**: All tests/builds passing
-- 🔴 **Red**: Tests/builds failing
-
-**Note**: Replace `your-username` in the badge URLs with your actual GitHub username.
 
 ## 📋 Prerequisites
 
@@ -68,7 +48,7 @@ The project automatically generates status badges for build and test status:
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>
+   git clone git@github.com:BuddyCount/frontend.git
    cd buddycount-frontend
    ```
 
@@ -84,7 +64,7 @@ The project automatically generates status badges for build and test status:
 
 4. **Run the app**
    ```bash
-   # iOS Simulator
+   # iOS Simulator (must be on Macos with Xcode installed)
    flutter emulators --launch apple_ios_simulator
    flutter run -d "iPhone 16 Plus"
    
@@ -139,13 +119,17 @@ lib/
 │   ├── group_detail_screen.dart       # Group details
 │   ├── add_expense_screen.dart        # Add expense form
 │   └── home_screen.dart               # Legacy home screen
+│   └── expense_detail_screen.dart      # Expense detail screen
 ├── services/                # Business logic
 │   ├── local_storage_service.dart     # Hive database operations
 │   ├── api_service.dart               # Backend API communication
 │   └── sync_service.dart              # Offline sync logic
+│   ├── auth_service.dart              # Authentication service
+│   ├── image_service.dart             # Image upload service
+│   ├── device_id_service.dart         # Device ID service
+│   └── api_service.dart               # Backend API communication
 └── widgets/                 # Reusable UI components
     └── group_dialog.dart    # Group creation/join dialog
-```
 
 ## 🎯 Usage
 
@@ -176,10 +160,10 @@ lib/
 ## 🔧 Development
 
 ### Adding New Features
-1. Create feature branch from `wip`
+1. Create new issue and corresponding feature branch
 2. Implement changes
 3. Test thoroughly
-4. Push to `wip` branch
+4. Commit changes and push to feature branch
 5. Create pull request to `main`
 
 ### Code Style
@@ -189,7 +173,7 @@ lib/
 - Ensure proper error handling
 
 ### Testing
-- Test on both iOS and Android
+- Test on iOS, Android and Web
 - Verify offline functionality
 - Check data persistence
 - Test edge cases and error scenarios
@@ -226,14 +210,12 @@ lib/
 
 ## 🔮 Future Enhancements
 
-- [ ] Backend API integration
+
 - [ ] Real-time collaboration
-- [ ] Expense categories and tags
-- [ ] Receipt image upload
 - [ ] Export functionality
 - [ ] Advanced analytics
 - [ ] Push notifications
-- [ ] Multi-language support
+
 
 ## 🤝 Contributing
 
@@ -260,6 +242,3 @@ For questions or issues:
 - Contact the development team
 - Check the project documentation
 
----
-
-**Built with ❤️ using Flutter**

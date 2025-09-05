@@ -46,11 +46,14 @@ class _GroupDialogState extends State<GroupDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(_isCreatingGroup ? 'Create New Group' : 'Join Existing Group'),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
             // Toggle between create and join
             SegmentedButton<bool>(
               segments: const [
@@ -148,6 +151,8 @@ class _GroupDialogState extends State<GroupDialog> {
               _buildMemberSelection(),
             ],
           ],
+            ),
+          ),
         ),
       ),
       actions: [
