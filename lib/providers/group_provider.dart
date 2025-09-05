@@ -86,7 +86,15 @@ class GroupProvider with ChangeNotifier {
         print('⚠️ No exchange rate for ${expense.amount} ${expense.currency} to ${group.currency}, using 1:1');
       }
       
-      final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
+      final payer = group.members.firstWhere(
+        (p) => p.id == expense.paidBy,
+        orElse: () => group.members.first,
+      );
+      
+      print('🔍 Balance calculation for expense "${expense.name}":');
+      print('   - Expense paidBy: "${expense.paidBy}"');
+      print('   - Found payer: "${payer.name}" (ID: ${payer.id})');
+      print('   - Split between: ${expense.splitBetween}');
       
       // Handle multiple payers or single payer
       if (expense.customPaidBy != null && expense.customPaidBy!.isNotEmpty) {
@@ -115,6 +123,7 @@ class GroupProvider with ChangeNotifier {
           final personShares = expense.customShares![person.id] ?? 1.0;
           final personAmount = (personShares / totalShares) * expenseAmountInGroupCurrency;
           balances[person.id] = (balances[person.id] ?? 0.0) - personAmount;
+          print('   - ${person.name} owes: \$${personAmount.toStringAsFixed(2)} (shares: $personShares)');
         }
       } else {
         // Equal splitting (original behavior)
@@ -127,8 +136,18 @@ class GroupProvider with ChangeNotifier {
             orElse: () => group.members.first,
           );
           balances[person.id] = (balances[person.id] ?? 0.0) - splitAmount;
+          print('   - ${person.name} owes: \$${splitAmount.toStringAsFixed(2)} (equal split)');
         }
       }
+    }
+    
+    print('💰 Final balances for group "${group.name}":');
+    for (final entry in balances.entries) {
+      final person = group.members.firstWhere(
+        (p) => p.id == entry.key,
+        orElse: () => group.members.first,
+      );
+      print('   - ${person.name}: \$${entry.value.toStringAsFixed(2)}');
     }
     
     return balances;

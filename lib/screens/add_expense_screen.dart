@@ -1398,13 +1398,22 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         splitBetween.add(member.name);
       }
       
+      // Extract payer ID from paidBy field
+      String payerId = _selectedPayer; // Default to selected payer
+      if (expenseData['paidBy'] != null && expenseData['paidBy']['repartition'] != null) {
+        final repartition = expenseData['paidBy']['repartition'] as List;
+        if (repartition.isNotEmpty) {
+          payerId = repartition.first['userId'].toString();
+        }
+      }
+      
       // Create expense locally from API response
       final expense = Expense(
         id: expenseData['id'].toString(),
         name: expenseData['name'],
         amount: expenseData['amount'].toDouble(),
         currency: expenseData['currency'],
-        paidBy: expenseData['paidBy'].toString(),
+        paidBy: payerId,
         splitBetween: splitBetween,
         date: DateTime.parse(expenseData['date']),
         groupId: currentGroup.id,
