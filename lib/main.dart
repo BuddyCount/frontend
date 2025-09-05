@@ -1,3 +1,9 @@
+/**
+ * File: main.dart
+ * Description: Main entry point for the app
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -6,6 +12,7 @@ import 'screens/groups_overview_screen.dart';
 import 'services/local_storage_service.dart';
 import 'services/auth_service.dart';
 
+// Main entry point for the app
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -21,6 +28,7 @@ void main() async {
   runApp(const BuddyCountApp());
 }
 
+// Class for the BuddyCount App
 class BuddyCountApp extends StatelessWidget {
   const BuddyCountApp({super.key});
 

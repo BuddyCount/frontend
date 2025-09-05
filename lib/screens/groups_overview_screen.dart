@@ -1,3 +1,9 @@
+/**
+ * File: groups_overview_screen.dart
+ * Description: Groups overview screen, shows the list of groups
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/group_provider.dart';
@@ -6,6 +12,7 @@ import '../models/group.dart';
 import '../services/sync_service.dart';
 import 'group_detail_screen.dart';
 
+// Widget for the Groups Overview Screen
 class GroupsOverviewScreen extends StatelessWidget {
   const GroupsOverviewScreen({super.key});
 
@@ -74,7 +81,7 @@ class GroupsOverviewScreen extends StatelessWidget {
     );
   }
 
-
+  // Builds the Empty State
 
   Widget _buildEmptyState(BuildContext context) {
     return Center(
@@ -135,6 +142,7 @@ class GroupsOverviewScreen extends StatelessWidget {
     );
   }
 
+  // Builds the Group Card
   Widget _buildGroupCard(BuildContext context, Group group, GroupProvider groupProvider) {
 
     return Card(
@@ -224,6 +232,7 @@ class GroupsOverviewScreen extends StatelessWidget {
     );
   }
 
+  // Builds the Info Chip
   Widget _buildInfoChip(BuildContext context, IconData icon, String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -250,6 +259,7 @@ class GroupsOverviewScreen extends StatelessWidget {
     );
   }
 
+  // Shows the Group Dialogs
   void _showGroupDialog(BuildContext context, bool isCreateMode) {
     showDialog(
       context: context,
@@ -266,6 +276,7 @@ class GroupsOverviewScreen extends StatelessWidget {
     });
   }
 
+  // Shows the Delete Confirmation Dialog
   void _showDeleteConfirmation(BuildContext context, Group group, GroupProvider groupProvider) {
     showDialog(
       context: context,
@@ -283,9 +294,6 @@ class GroupsOverviewScreen extends StatelessWidget {
           ),
           TextButton(
             onPressed: () async {
-              // Get provider reference before closing dialog
-              final groupProvider = Provider.of<GroupProvider>(context, listen: false);
-              
               Navigator.of(context).pop();
               
               // Show loading indicator
@@ -296,38 +304,18 @@ class GroupsOverviewScreen extends StatelessWidget {
                 ),
               );
               
-              // Delete group directly from provider and storage
-              try {
-                // Remove from provider immediately
-                groupProvider.removeGroup(group.id);
-                
-                // Show success message
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Group "${group.name}" deleted successfully'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                }
-                
-                // Try to delete from API in background (don't wait for it)
-                final syncService = SyncService();
-                syncService.deleteGroupOffline(group.id, context, groupProvider).catchError((e) {
-                  print('Background API deletion failed: $e');
-                  // Don't show error to user since local deletion succeeded
-                });
-                
-              } catch (e) {
-                print('Error deleting group: $e');
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error deleting group: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
+              // Use sync service to delete the group
+              final syncService = SyncService();
+              await syncService.deleteGroupOffline(group.id, context);
+              
+              // Show success message
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Group "${group.name}" deleted successfully'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
               }
             },
             style: TextButton.styleFrom(
@@ -340,6 +328,7 @@ class GroupsOverviewScreen extends StatelessWidget {
     );
   }
   
+  // Builds the Personal Balance Section
   Widget _buildPersonalBalanceSection(BuildContext context, Group group, GroupProvider groupProvider) {
     final userMember = groupProvider.getUserMember(group.id);
     final personalBalance = groupProvider.getUserPersonalBalance(group.id);
@@ -402,7 +391,7 @@ class GroupsOverviewScreen extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Column(
+              child: Column(//
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -456,6 +445,7 @@ class GroupsOverviewScreen extends StatelessWidget {
     );
   }
   
+  // Shows the Member Selection Dialog
   void _showMemberSelectionDialog(BuildContext context, Group group, GroupProvider groupProvider) {
     showDialog(
       context: context,

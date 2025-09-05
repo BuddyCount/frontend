@@ -1,3 +1,10 @@
+/**
+ * File: image_service.dart
+ * Description: Image service, provides methods to upload and get images
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ */
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -5,7 +12,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
 
-class ImageService {//
+// Class for the Image Service
+class ImageService {
   static const String baseUrl = 'https://api.buddycount.duckdns.org';
   
   /// Upload an image file to the server

@@ -1,9 +1,16 @@
+/**
+ * File: device_id_service.dart
+ * Description: Device ID service, provides methods to get a unique device identifier
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ */
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:crypto/crypto.dart';
 
+// Class for the Device ID Service
 class DeviceIdService {
   
   /// Gets a unique device identifier that is hashed for privacy and consistency

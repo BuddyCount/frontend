@@ -1,8 +1,16 @@
+/**
+ * File: auth_service.dart
+ * Description: Auth service, provides methods to interact with the backend
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ */
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:hive_flutter/hive_flutter.dart';
 import 'device_id_service.dart';
 
+// Class for the Auth Service
 class AuthService {
   static const String _baseUrl = 'https://api.buddycount.duckdns.org';
   static const String _tokenBoxName = 'auth_tokens';

@@ -1,3 +1,10 @@
+/**
+ * File: local_storage_service.dart
+ * Description: Local storage service, provides methods to save and get data from the local storage
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ */
+
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/group.dart';
 import '../models/expense.dart';

@@ -1,3 +1,10 @@
+/**
+ * File: expense.dart
+ * Description: Model for expenses of a group, to use with Hive for local database storage
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ */
+
 import 'package:hive/hive.dart';
 
 part 'expense.g.dart';

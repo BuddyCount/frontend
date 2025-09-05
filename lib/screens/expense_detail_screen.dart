@@ -1,3 +1,11 @@
+/**
+ * File: expense_detail_screen.dart
+ * Description: Expense detail screen, shows the details of an expense
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ */
+
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/group_provider.dart';
@@ -79,6 +87,7 @@ class ExpenseDetailScreen extends StatelessWidget {
     );
   }
 
+  // Builds the Basic Info Card
   Widget _buildBasicInfoCard(Expense expense, Group group) {
     return Card(
       child: Padding(
@@ -118,6 +127,7 @@ class ExpenseDetailScreen extends StatelessWidget {
     );
   }
 
+  // Builds the Payment Details Card
   Widget _buildPaymentDetailsCard(Expense expense, Group group) {
     return Card(
       child: Padding(
@@ -199,6 +209,7 @@ class ExpenseDetailScreen extends StatelessWidget {
     );
   }
 
+  // Builds the Split Details Card
   Widget _buildSplitDetailsCard(Expense expense, Group group) {
     return Card(
       child: Padding(
@@ -299,6 +310,7 @@ class ExpenseDetailScreen extends StatelessWidget {
     );
   }
 
+  // Builds the Images Card
   Widget _buildImagesCard(Expense expense) {
     return Card(
       child: Padding(
@@ -352,6 +364,7 @@ class ExpenseDetailScreen extends StatelessWidget {
     );
   }
 
+  // Builds the Metadata Card
   Widget _buildMetadataCard(Expense expense) {
     return Card(
       child: Padding(
@@ -391,6 +404,7 @@ class ExpenseDetailScreen extends StatelessWidget {
     );
   }
 
+  // Builds the Info Row
   Widget _buildInfoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
@@ -421,6 +435,7 @@ class ExpenseDetailScreen extends StatelessWidget {
     );
   }
 
+  // Shows the image source dialog
   void _showImageDialog(BuildContext context, String filename) {
     showDialog(
       context: context,
@@ -467,6 +482,7 @@ class _AuthenticatedImage extends StatefulWidget {
   State<_AuthenticatedImage> createState() => _AuthenticatedImageState();
 }
 
+// State for the _AuthenticatedImage widget
 class _AuthenticatedImageState extends State<_AuthenticatedImage> {
   Uint8List? _imageBytes;
   bool _isLoading = true;
