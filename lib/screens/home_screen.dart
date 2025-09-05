@@ -1,3 +1,10 @@
+/**
+ * File: home_screen.dart
+ * Description: Home screen, shows the list of groups
+ * Author: Sergey Komarov
+ * Date: 2025-09-05s
+ */
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/group_provider.dart';
@@ -16,6 +23,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+// State for the Home Screen
 class _HomeScreenState extends State<HomeScreen> {
   late final SyncService _syncService;
 
@@ -104,7 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.info_outline),
             onPressed: () {
-              // Show app info instead of navigating to landing page.
+              // Show app info instead of navigating to landing page
               showAboutDialog(
                 context: context,
                 applicationName: 'BuddyCount',
@@ -129,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,//
               children: [
                 _buildGroupHeader(currentGroup),
                 const SizedBox(height: 24),
@@ -164,6 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Builds the Empty State
   Widget _buildEmptyState(BuildContext context) {
     return Center(
       child: Padding(
@@ -267,6 +276,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Builds the Groups Overviews
   Widget _buildGroupsOverview(BuildContext context, GroupProvider groupProvider) {
                     if (groupProvider.groups.length <= 1) {
                   return const SizedBox.shrink();
@@ -316,6 +326,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Shows the Group Dialogss
   void _showGroupDialog(BuildContext context, bool isCreateMode) {
     showDialog(
       context: context,
@@ -443,6 +454,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Builds the Expenses Section
   Widget _buildExpensesSection(BuildContext context, Group group, GroupProvider groupProvider) {
     return Card(
       child: Padding(
@@ -499,6 +511,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Builds the Expense Tile
   Widget _buildExpenseTile(Expense expense, Group group) {
     final payer = group.members.firstWhere((p) => p.id == expense.paidBy);
     
@@ -524,6 +537,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Calculates the balances for the group
   Map<String, double> _calculateBalances(Group group) {
     final balances = <String, double>{};
     

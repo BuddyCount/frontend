@@ -1,3 +1,10 @@
+/**
+ * File: sync_service.dart
+ * Description: Sync service, provides methods to sync data with the backend
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ */
+
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +16,7 @@ import '../models/group.dart';
 import '../models/person.dart';
 import '../models/expense.dart';
 
+// Class for the Sync Service
 class SyncService {
   static final SyncService _instance = SyncService._internal();
   factory SyncService() => _instance;
@@ -44,7 +52,7 @@ class SyncService {
     _startPeriodicSync();
   }
 
-  // Start periodic sync
+  // Starts periodic sync
   void _startPeriodicSync() {
     _syncTimer?.cancel();
     if (_isOnline) {
@@ -57,7 +65,7 @@ class SyncService {
     }
   }
   
-  // Manually check connectivity status
+  // Manually checks connectivity status
   Future<bool> checkConnectivity() async {
     try {
       final connectivityResult = await Connectivity().checkConnectivity();
@@ -76,7 +84,7 @@ class SyncService {
     }
   }
 
-  // Create group (online-first, offline-fallback)
+  // Creates a group (online-first, offline-fallback)
   Future<void> createGroupOffline(String name, List<String> memberNames, BuildContext context, {String description = '', String currency = 'USD'}) async {
     print('🔍 SyncService: _isOnline = $_isOnline');
     
@@ -185,7 +193,7 @@ class SyncService {
     print('📱 Group created offline with ID: $groupId (will sync when online)');
   }
   
-  // Delete group (online-first, offline-fallback)
+  // Deletes a group (online-first, offline-fallback)
   Future<void> deleteGroupOffline(String groupId, BuildContext context, [GroupProvider? groupProvider]) async {
     print('🔍 SyncService: Deleting group $groupId, _isOnline = $_isOnline');
     
@@ -260,7 +268,7 @@ class SyncService {
     print('📱 Group deleted offline with ID: $groupId (will sync when online)');
   }
   
-  // Join group (online-first, offline-fallback)
+  // Joins a group (online-first, offline-fallback)
   Future<void> joinGroupOffline(String inviteLink, BuildContext context) async {
     // Always try to join group via API first, regardless of _isOnline status
     // (similar to createGroupOffline logic)
@@ -395,7 +403,7 @@ class SyncService {
     }
   }
 
-  // Add expense (offline-first)
+  // Adds an expense (offline-first)
   Future<void> addExpenseOffline(Expense expense, BuildContext context) async {
     // Save to local storage immediately
     await LocalStorageService.saveExpense(expense);
@@ -419,7 +427,7 @@ class SyncService {
     }
   }
 
-  // Update expense (online-first, offline-fallback)
+  // Updates an expense (online-first, offline-fallback)
   Future<void> updateExpenseOffline(Expense expense, BuildContext context, [GroupProvider? groupProvider]) async {
     print('🔍 SyncService: Updating expense ${expense.id}, _isOnline = $_isOnline');
     
@@ -509,7 +517,7 @@ class SyncService {
     print('📱 Expense updated offline with ID: ${expense.id} (will sync when online)');
   }
 
-  // Delete expense (online-first, offline-fallback)
+  // Deletes an expense (online-first, offline-fallback)
   Future<void> deleteExpenseOffline(String expenseId, BuildContext context, [GroupProvider? groupProvider]) async {
     print('🔍 SyncService: Deleting expense $expenseId, _isOnline = $_isOnline');
     
@@ -579,7 +587,7 @@ class SyncService {
   
 
 
-  // Sync pending operations with backend
+  // Syncs pending operations with backend
   Future<void> _syncPendingOperations(BuildContext context) async {
     if (!_isOnline) return;
 
@@ -605,7 +613,7 @@ class SyncService {
     }
   }
 
-  // Sync create group operation
+  // Syncs create group operation
   Future<void> _syncCreateGroup(Map<String, dynamic> data) async {
     try {
       await ApiService.createGroup(data['name'], data['memberNames']);
@@ -614,7 +622,7 @@ class SyncService {
     }
   }
 
-  // Sync add expense operation
+  // Syncs add expense operation
   Future<void> _syncAddExpense(Map<String, dynamic> data) async {
     try {
       // You'll need to implement this in ApiService
@@ -625,7 +633,7 @@ class SyncService {
     }
   }
 
-  // Check if online.
+  // Checks if online.
   bool get isOnline => _isOnline;
 
   // Manual sync trigger

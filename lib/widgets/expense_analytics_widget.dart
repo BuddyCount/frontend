@@ -1,3 +1,9 @@
+/**
+ * File: expense_analytics_widget.dart
+ * Description: Widget for the expense analytics page
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ */
 import 'package:flutter/material.dart';
 import 'dart:math';
 import '../models/group.dart';
@@ -5,6 +11,7 @@ import '../models/expense.dart';
 import '../models/person.dart';
 import '../services/api_service.dart';
 
+// Class for the Expense Analytics Widget
 class ExpenseAnalyticsWidget extends StatefulWidget {
   final Group group;
   
@@ -17,6 +24,7 @@ class ExpenseAnalyticsWidget extends StatefulWidget {
   State<ExpenseAnalyticsWidget> createState() => _ExpenseAnalyticsWidgetState();
 }
 
+// State for the Expense Analytics Widget
 class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
   Person? _selectedMember;
   String _selectedTimeRange = '30d'; // 7d, 30d, 90d, 1y, all
@@ -100,6 +108,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     );
   }
 
+  // Builds the filter summary
   Widget _buildFilterSummary() {
     return Wrap(
       spacing: 8,
@@ -138,6 +147,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     );
   }
 
+  // Builds the prediction controls
   Widget _buildPredictionControls() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -264,6 +274,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     );
   }
 
+  // Builds the expense chart
   Widget _buildExpenseChart(List<ChartDataPoint> chartData) {
     if (chartData.isEmpty) {
       return const Center(
@@ -300,6 +311,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     );
   }
 
+  // Builds the X axis labels
   Widget _buildXAxisLabels(List<ChartDataPoint> chartData) {
     if (chartData.length <= 1) return const SizedBox.shrink();
     
@@ -331,6 +343,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     return Row(children: labels);
   }
 
+  // Formats the date label
   String _formatDateLabel(DateTime date) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -350,6 +363,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     }
   }
 
+  // Gets the day name
   String _getDayName(int weekday) {
     switch (weekday) {
       case 1: return 'Mon';
@@ -363,6 +377,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     }
   }
 
+  // Builds the statistics
   Widget _buildStatistics(List<Expense> expenses) {
     if (expenses.isEmpty) {
       return const Center(
@@ -434,6 +449,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     );
   }
 
+  // Builds the stat card
   Widget _buildStatCard(String title, String value, IconData icon, Color color, {String? subtitle}) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -485,6 +501,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     );
   }
 
+  // Shows the filter dialog
   void _showFilterDialog() {
     showDialog(
       context: context,
@@ -551,7 +568,8 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     );
   }
 
-  List<Expense> _getFilteredExpenses() {
+  // Gets the filtered expenses
+    List<Expense> _getFilteredExpenses() {
     List<Expense> expenses = List.from(widget.group.expenses);
     
     // Filter by member if selected
@@ -579,6 +597,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     return expenses;
   }
 
+  // Gets the cutoff date
   DateTime? _getCutoffDate(DateTime now) {
     switch (_selectedTimeRange) {
       case '7d':
@@ -595,6 +614,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     }
   }
 
+  // Gets the time range label
   String _getTimeRangeLabel() {
     switch (_selectedTimeRange) {
       case '7d':
@@ -612,6 +632,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     }
   }
 
+  // Prepares the chart data
   List<ChartDataPoint> _prepareChartData(List<Expense> expenses) {
     final Map<DateTime, double> dailyTotals = {};
     
@@ -649,6 +670,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     return chartData;
   }
   
+  // Checks if the date is a prediction date
   bool _isPredictionDate(DateTime date) {
     if (!_showPredictions || _predictions.isEmpty) return false;
     final tomorrow = DateTime.now().add(const Duration(days: 1));
@@ -657,6 +679,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
            (date.isAtSameMomentAs(tomorrow) || date.isBefore(lastPredictionDate) || date.isAtSameMomentAs(lastPredictionDate));
   }
 
+  // Calculates the average per day
   double _calculateAveragePerDay(List<Expense> expenses) {
     if (expenses.isEmpty) return 0;
     
@@ -666,6 +689,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     return days > 0 ? totalAmount / days : 0;
   }
 
+  // Gets the days in range
   int _getDaysInRange(List<Expense> expenses) {
     if (expenses.isEmpty) return 0;
     
@@ -678,6 +702,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     return lastDate.difference(firstDate).inDays + 1;
   }
 
+  // Fetches the predictions
   Future<void> _fetchPredictions() async {
     if (_isLoadingPredictions) return;
     
@@ -717,6 +742,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     }
   }
   
+  // Toggles the predictions
   void _togglePredictions() {
     setState(() {
       _showPredictions = !_showPredictions;
@@ -727,6 +753,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     }
   }
   
+  // Updates the prediction settings
   void _updatePredictionSettings() {
     setState(() {
       _predictions.clear(); // Clear old predictions
@@ -737,6 +764,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
     }
   }
   
+  // Selects the prediction start date
   Future<void> _selectPredictionStartDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -754,6 +782,7 @@ class _ExpenseAnalyticsWidgetState extends State<ExpenseAnalyticsWidget> {
   }
 }
 
+// Class for the chart data point
 class ChartDataPoint {
   final DateTime date;
   final double value;
@@ -762,6 +791,7 @@ class ChartDataPoint {
   ChartDataPoint(this.date, this.value, {this.isPrediction = false});
 }
 
+// Class for the expense chart painter
 class ExpenseChartPainter extends CustomPainter {
   final List<ChartDataPoint> chartData;
   final bool showCumulative;
@@ -774,6 +804,7 @@ class ExpenseChartPainter extends CustomPainter {
   });
 
   @override
+  // Paints the expense chart
   void paint(Canvas canvas, Size size) {
     if (chartData.isEmpty) return;
 

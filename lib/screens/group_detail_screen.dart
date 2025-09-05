@@ -1,3 +1,9 @@
+/**
+ * File: group_detail_screen.dart
+ * Description: Group detail screen, shows the details of a group
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ */
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
@@ -31,6 +37,8 @@ class GroupDetailScreen extends StatefulWidget {
   @override
   State<GroupDetailScreen> createState() => _GroupDetailScreenState();
 }
+
+// State for the GroupDetailScreen
 
 class _GroupDetailScreenState extends State<GroupDetailScreen> {
   Person? _selectedMember;
@@ -118,6 +126,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
+  // Builds the Group Header
   Widget _buildGroupHeader(Group group) {
     return Card(
       child: Padding(
@@ -154,10 +163,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
+  // Builds the Expense Analytics Section
   Widget _buildExpenseAnalyticsSection(Group group) {
     return ExpenseAnalyticsWidget(group: group);
   }
 
+  // Builds the Balances Section
   Widget _buildBalancesSection(Group group) {
     final balances = _calculateBalances(group);
     
@@ -243,6 +254,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
+  // Builds the Expenses Section
   Widget _buildExpensesSection(BuildContext context, Group group, GroupProvider groupProvider) {
     if (group.expenses.isEmpty) {
       return Card(
@@ -316,6 +328,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
+  // Builds the Expense Tile
   Widget _buildExpenseTile(BuildContext context, Expense expense, Group group, GroupProvider groupProvider) {
     final payer = group.members.firstWhere(
       (p) => p.id == expense.paidBy || p.name == expense.paidBy,
@@ -521,6 +534,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
+  // Calculates the balances for the group
   Map<String, double> _calculateBalances(Group group) {
     final balances = <String, double>{};
     
@@ -582,6 +596,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     return balances;
   }
 
+  // Shows the delete confirmation dialog
   void _showDeleteConfirmation(BuildContext context) {
     showDialog(
       context: context,
@@ -638,6 +653,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
+  // Shows the share dialog
   void _showShareDialog(BuildContext context) {
     final shareLink = widget.group.linkToken != null 
         ? 'https://buddycount.app/join/${widget.group.linkToken}'
@@ -760,6 +776,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
+  // Builds the Expense Filters
   Widget _buildExpenseFilters(BuildContext context, Group group) {
     return Row(
       children: [
@@ -817,6 +834,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
+  // Gets the filtered expenses
   List<Expense> _getFilteredExpenses(Group group) {
     List<Expense> filteredExpenses = List.from(group.expenses);
     
@@ -846,6 +864,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     return filteredExpenses;
   }
 
+  // Gets the cutoff date for the selected time range
   DateTime? _getCutoffDate(DateTime now) {
     switch (_selectedTimeRange) {
       case '7d':
@@ -861,6 +880,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     }
   }
 
+  // Builds the Debt Settlements section
   Widget _buildDebtSettlements(Map<String, double> balances, Group group) {
     final settlements = _calculateOptimalSettlements(balances, group);
     
@@ -986,6 +1006,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
+  // Calculates the optimal settlements for the balances
   List<Settlement> _calculateOptimalSettlements(Map<String, double> balances, Group group) {
     final List<Settlement> settlements = [];
     

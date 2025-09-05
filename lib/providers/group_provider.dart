@@ -1,3 +1,12 @@
+
+/**
+ * File: group_provider.dart
+ * Description: Provider for groups of a user, provides methods to manage groups and expenses
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ */
+
+
 import 'package:flutter/foundation.dart';
 import '../models/group.dart';
 import '../models/expense.dart';
@@ -275,6 +284,7 @@ class GroupProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // Remove group from memory and storage
   Future<void> removeGroup(String groupId) async {
     _groups.removeWhere((group) => group.id == groupId);
     if (_currentGroup?.id == groupId) {
@@ -371,6 +381,7 @@ class GroupProvider with ChangeNotifier {
     print('Warning: Could not find expense with id $expenseId to remove');
   }
 
+  // Update expense in memory and storage
   Future<void> updateExpense(Expense updatedExpense) async {
     // Find which group contains this expense
     for (int i = 0; i < _groups.length; i++) {

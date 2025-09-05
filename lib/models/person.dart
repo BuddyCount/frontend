@@ -1,3 +1,10 @@
+/**
+ * File: person.dart
+ * Description: Model for people in a group, to use with Hive for local database storage
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ */
+
 import 'package:hive/hive.dart';
 
 part 'person.g.dart';

@@ -1,3 +1,11 @@
+/**
+ * File: add_expense_screen.dart
+ * Description: Screen for adding a new expense to a group, provides a form to add a new expense
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ */
+
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -239,6 +247,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+
+  // Builds the Expense Name Card
   Widget _buildExpenseNameCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -315,6 +325,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  // Builds the Amount & Currency Card
   Widget _buildAmountCurrencyCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -444,6 +455,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  // Builds the Category & Exchange Rate Card
   Widget _buildCategoryExchangeCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -576,6 +588,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  // Builds the Date Card
   Widget _buildDateCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -647,6 +660,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  // Builds the Payment Mode Card
   Widget _buildPaymentModeCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -765,6 +779,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  // Builds the Split Mode Card
   Widget _buildSplitModeCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -843,6 +858,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  // Builds the Members Selection Card
   Widget _buildMembersSelectionCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1018,6 +1034,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  // Builds the Custom Shares Card
   Widget _buildCustomSharesCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1116,6 +1133,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  // Builds the Custom Paid By Card
   Widget _buildCustomPaidByCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1244,6 +1262,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  // Builds the Save Button
   Widget _buildSaveButton() {
     return Container(
       width: double.infinity,
@@ -1295,6 +1314,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  // Date selector
   void _selectDate() async {
     final DateTime? picked = await showDatePicker(
           context: context,
@@ -1309,6 +1329,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
+  // Save expense
   void _saveExpense() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -1511,6 +1532,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
+  // Builds the Images Card
   Widget _buildImagesCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1644,6 +1666,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }//
 
+  // Shows the image source dialog
   void _showImageSourceDialog() {
     showDialog(
       context: context,
@@ -1674,6 +1697,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  // Picks an image from the gallery or camera
   Future<void> _pickImage(ImageSource source) async {
     final imageFile = await ImageService.pickImage(source: source);
     if (imageFile != null) {
@@ -1683,6 +1707,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
+  // Selects all members
   void _selectAllMembers() {
     final groupProvider = Provider.of<GroupProvider>(context, listen: false);
     final currentGroup = groupProvider.currentGroup;

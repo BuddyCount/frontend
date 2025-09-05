@@ -1,7 +1,16 @@
+/**
+ * File: api_service.dart
+ * Description: API service, provides methods to interact with the backend
+ * Author: Sergey Komarov
+ * Date: 2025-09-05
+ * 
+ */
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'auth_service.dart';
 
+// Class for the API service
 class ApiService {
   static const String baseUrl = 'https://api.buddycount.duckdns.org';
   
