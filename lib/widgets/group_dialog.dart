@@ -46,108 +46,113 @@ class _GroupDialogState extends State<GroupDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(_isCreatingGroup ? 'Create New Group' : 'Join Existing Group'),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Toggle between create and join
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('Create')),
-                ButtonSegment(value: false, label: Text('Join')),
-              ],
-              selected: {_isCreatingGroup},
-              onSelectionChanged: (Set<bool> newSelection) {
-                setState(() {
-                  _isCreatingGroup = newSelection.first;
-                });
-              },
-            ),
-            const SizedBox(height: 20),
-            
-            if (_isCreatingGroup) ...[
-              // Create group form
-              TextFormField(
-                controller: _groupNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Group Name',
-                  border: OutlineInputBorder(),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Toggle between create and join
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: true, label: Text('Create')),
+                    ButtonSegment(value: false, label: Text('Join')),
+                  ],
+                  selected: {_isCreatingGroup},
+                  onSelectionChanged: (Set<bool> newSelection) {
+                    setState(() {
+                      _isCreatingGroup = newSelection.first;
+                    });
+                  },
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a group name';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Description (optional)',
-                  border: OutlineInputBorder(),
-                  hintText: 'Family group, Work team, etc.',
-                ),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedCurrency,
-                decoration: const InputDecoration(
-                  labelText: 'Currency',
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'USD', child: Text('USD')),
-                  DropdownMenuItem(value: 'EUR', child: Text('EUR')),
-                  DropdownMenuItem(value: 'CHF', child: Text('CHF')),
+                const SizedBox(height: 20),
+                
+                if (_isCreatingGroup) ...[
+                  // Create group form
+                  TextFormField(
+                    controller: _groupNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Group Name',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a group name';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Description (optional)',
+                      border: OutlineInputBorder(),
+                      hintText: 'Family group, Work team, etc.',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedCurrency,
+                    decoration: const InputDecoration(
+                      labelText: 'Currency',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'USD', child: Text('USD')),
+                      DropdownMenuItem(value: 'EUR', child: Text('EUR')),
+                      DropdownMenuItem(value: 'CHF', child: Text('CHF')),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedCurrency = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _memberNamesController,
+                    decoration: const InputDecoration(
+                      labelText: 'Member Names (comma separated)',
+                      border: OutlineInputBorder(),
+                      hintText: 'Alice, Bob, Charlie',
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter at least one member name';
+                      }
+                      return null;
+                    },
+                  ),
+                ] else ...[
+                  // Join group form
+                  TextFormField(
+                    controller: _inviteLinkController,
+                    decoration: const InputDecoration(
+                      labelText: 'Invite Link',
+                      border: OutlineInputBorder(),
+                      hintText: 'https://buddycount.app/join/abc123',
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter an invite link';
+                      }
+                      final uri = Uri.tryParse(value);
+                      if (uri == null || !uri.hasAbsolutePath) {
+                        return 'Please enter a valid URL';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  // Member selection for the current user
+                  _buildMemberSelection(),
                 ],
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCurrency = value!;
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _memberNamesController,
-                decoration: const InputDecoration(
-                  labelText: 'Member Names (comma separated)',
-                  border: OutlineInputBorder(),
-                  hintText: 'Alice, Bob, Charlie',
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter at least one member name';
-                  }
-                  return null;
-                },
-              ),
-            ] else ...[
-              // Join group form
-              TextFormField(
-                controller: _inviteLinkController,
-                decoration: const InputDecoration(
-                  labelText: 'Invite Link',
-                  border: OutlineInputBorder(),
-                  hintText: 'https://buddycount.app/join/abc123',
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter an invite link';
-                  }
-                  final uri = Uri.tryParse(value);
-                  if (uri == null || !uri.hasAbsolutePath) {
-                    return 'Please enter a valid URL';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              // Member selection for the current user
-              _buildMemberSelection(),
-            ],
-          ],
+              ],
+            ),
+          ),
         ),
       ),
       actions: [

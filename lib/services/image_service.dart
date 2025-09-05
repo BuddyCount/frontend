@@ -24,7 +24,7 @@ class ImageService {
       }
       
       // Create multipart request
-      final request = http.MultipartRequest(
+      var request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/image/upload'),
       );
@@ -80,9 +80,50 @@ class ImageService {
         );
       }
       
-      // Send the request
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      // Send the request with token refresh logic
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+      
+      // If we get a 401, try to refresh the token and retry once
+      if (response.statusCode == 401) {
+        print('🔄 Got 401 error on image upload, attempting token refresh...');
+        final newToken = await AuthService.refreshToken();
+        
+        if (newToken != null) {
+          print('✅ Token refreshed successfully, retrying image upload...');
+          // Recreate the request with the new token
+          request = http.MultipartRequest('POST', Uri.parse('https://api.buddycount.duckdns.org/image/upload'));
+          request.headers['Authorization'] = 'Bearer $newToken';
+          
+          // Re-add the file
+          if (kIsWeb) {
+            final bytes = await imageFile.readAsBytes();
+            final sanitizedFilename = _sanitizeFilename(imageFile.name, fileExtension);
+            request.files.add(
+              http.MultipartFile.fromBytes(
+                'file',
+                bytes,
+                contentType: contentType,
+                filename: sanitizedFilename,
+              ),
+            );
+          } else {
+            request.files.add(
+              await http.MultipartFile.fromPath(
+                'file',
+                imageFile.path,
+                contentType: contentType,
+              ),
+            );
+          }
+          
+          // Retry the request
+          streamedResponse = await request.send();
+          response = await http.Response.fromStream(streamedResponse);
+        } else {
+          print('❌ Token refresh failed for image upload');
+        }
+      }
       
       print('📡 Image Upload Response: Status ${response.statusCode}');
       print('📄 Image Upload Response body: ${response.body}');

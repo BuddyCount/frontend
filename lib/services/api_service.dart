@@ -45,6 +45,29 @@ class ApiService {
     
     return headers;
   }
+
+  /// Makes an HTTP request with automatic token refresh on 401 errors
+  static Future<http.Response> _makeRequestWithTokenRefresh(
+    Future<http.Response> Function() requestFunction,
+  ) async {
+    // First attempt
+    var response = await requestFunction();
+    
+    // If we get a 401, try to refresh the token and retry once
+    if (response.statusCode == 401) {
+      print('🔄 Got 401 error, attempting token refresh...');
+      final newToken = await AuthService.refreshToken();
+      
+      if (newToken != null) {
+        print('✅ Token refreshed successfully, retrying request...');
+        response = await requestFunction();
+      } else {
+        print('❌ Token refresh failed');
+      }
+    }
+    
+    return response;
+  }
   
   // Test connectivity to the backend
   static Future<bool> testConnectivity() async {
@@ -84,9 +107,6 @@ class ApiService {
       ).timeout(const Duration(seconds: 10));
       
       print('🔍 Final connectivity test response: ${response.statusCode}');
-      return response.statusCode < 500;
-      
-
       print('🔍 Connectivity test response: ${response.statusCode}');
       return response.statusCode < 500; // Any response means we can reach the server.
 
@@ -157,16 +177,18 @@ class ApiService {
       print('📋 Extracted group ID: $groupId');
       
       // Step 1: Send join request to /group/join/{linkToken}
-      final headers = await _getAuthHeaders();
-      final joinResponse = await http.get(
-        Uri.parse('$baseUrl/group/join/$groupId'),
-        headers: headers,
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw Exception('Join request timed out after 10 seconds');
-        },
-      );
+      final joinResponse = await _makeRequestWithTokenRefresh(() async {
+        final headers = await _getAuthHeaders();
+        return await http.get(
+          Uri.parse('$baseUrl/group/join/$groupId'),
+          headers: headers,
+        ).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            throw Exception('Join request timed out after 10 seconds');
+          },
+        );
+      });
       
       print('📡 Join API Response: Status ${joinResponse.statusCode}');
       print('📄 Join Response body: ${joinResponse.body}');
@@ -280,20 +302,22 @@ class ApiService {
     try {
       print('📋 Fetching group details for ID: $groupId (withExpenses: $withExpenses)');
       
-      final headers = await _getAuthHeaders();
       final url = withExpenses 
           ? '$baseUrl/group/$groupId?withExpenses=true'
           : '$baseUrl/groups/$groupId';
       
-      final response = await http.get(
-        Uri.parse(url),
-        headers: headers,
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw Exception('Request timed out after 10 seconds');
-        },
-      );
+      final response = await _makeRequestWithTokenRefresh(() async {
+        final headers = await _getAuthHeaders();
+        return await http.get(
+          Uri.parse(url),
+          headers: headers,
+        ).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            throw Exception('Request timed out after 10 seconds');
+          },
+        );
+      });
       
       print('📡 Get Group Response: Status ${response.statusCode}');
       
@@ -347,16 +371,18 @@ class ApiService {
     try {
       print('🗑️ Deleting expense via API: $expenseId');
       
-      final headers = await _getAuthHeaders();
-      final response = await http.delete(
-        Uri.parse('$baseUrl/expense/$expenseId'),
-        headers: headers,
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw Exception('Delete request timed out after 10 seconds');
-        },
-      );
+      final response = await _makeRequestWithTokenRefresh(() async {
+        final headers = await _getAuthHeaders();
+        return await http.delete(
+          Uri.parse('$baseUrl/expense/$expenseId'),
+          headers: headers,
+        ).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            throw Exception('Delete request timed out after 10 seconds');
+          },
+        );
+      });
       
       print('📡 Delete Expense Response: Status ${response.statusCode}');
       
@@ -459,17 +485,19 @@ class ApiService {
         print('🔍 Member names: $memberNames');
       }
       
-      final headers = await _getAuthHeaders();
-      final response = await http.patch(
-        Uri.parse('$baseUrl/expense/$expenseId'),
-        headers: headers,
-        body: jsonEncode(requestBody),
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw Exception('Request timed out after 10 seconds');
-        },
-      );
+      final response = await _makeRequestWithTokenRefresh(() async {
+        final headers = await _getAuthHeaders();
+        return await http.patch(
+          Uri.parse('$baseUrl/expense/$expenseId'),
+          headers: headers,
+          body: jsonEncode(requestBody),
+        ).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            throw Exception('Request timed out after 10 seconds');
+          },
+        );
+      });
       
       print('📡 Update Expense Response: Status ${response.statusCode}');
       print('📄 Response body: ${response.body}');
@@ -573,17 +601,19 @@ class ApiService {
         print('🔍 Member names: $memberNames');
       }
       
-      final headers = await _getAuthHeaders();
-      final response = await http.post(
-        Uri.parse('$baseUrl/group/$groupId/expense'),
-        headers: headers,
-        body: jsonEncode(requestBody),
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw Exception('Request timed out after 10 seconds');
-        },
-      );
+      final response = await _makeRequestWithTokenRefresh(() async {
+        final headers = await _getAuthHeaders();
+        return await http.post(
+          Uri.parse('$baseUrl/group/$groupId/expense'),
+          headers: headers,
+          body: jsonEncode(requestBody),
+        ).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            throw Exception('Request timed out after 10 seconds');
+          },
+        );
+      });
       
       print('📡 Create Expense Response: Status ${response.statusCode}');
       print('📄 Response body: ${response.body}');
