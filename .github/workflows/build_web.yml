@@ -1,0 +1,70 @@
+name: Build Flutter Web App
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.35.2'
+        channel: 'stable'
+        cache: true
+    
+    - name: Install dependencies
+      run: flutter pub get
+    
+    - name: Verify Flutter installation
+      run: flutter doctor -v
+    
+    - name: Build Flutter Web App
+      run: |
+        echo "Building Flutter web app..."
+        flutter build web --release
+        
+        echo "Build completed successfully!"
+        echo "Build output directory: build/web"
+        
+        # List the contents of the build directory
+        echo "Build directory contents:"
+        ls -la build/web/
+        
+        # Show the size of the build
+        echo "Build size:"
+        du -sh build/web/
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: flutter-web-build
+        path: build/web/
+        retention-days: 30
+    
+    - name: Build summary
+      run: |
+        echo "=== Build Summary ==="
+        echo "✅ Flutter web app built successfully"
+        echo "📁 Build artifacts uploaded to GitHub Actions"
+        echo "🌐 Web app is ready for deployment"
+        echo ""
+        echo "Build details:"
+        echo "- Flutter version: $(flutter --version | head -n 1)"
+        echo "- Build mode: Release"
+        echo "- Web renderer: HTML"
+        echo "- Build directory: build/web/"
+        echo ""
+        echo "To deploy:"
+        echo "1. Download the build artifacts from this workflow run"
+        echo "2. Upload the contents to your web server"
+        echo "3. Configure your web server to serve index.html for all routes"
